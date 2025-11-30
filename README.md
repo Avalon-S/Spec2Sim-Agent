@@ -34,6 +34,7 @@ Transform natural language system specifications into verified simulation code i
 - [The Solution](#the-solution)
 - [Core Innovation: Self-Healing Loop](#core-innovation-self-healing-loop)
 - [Performance Results](#performance-results)
+- [Architecture](#architecture)
 - [Project Structure](#project-structure)
 - [Quick Start](#quick-start)
 - [Key Features](#key-features)
