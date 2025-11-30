@@ -6,6 +6,12 @@ Transform natural language system specifications into verified simulation code i
 
 ---
 
+
+<div align="center">
+  <img src="doc/logo.png" alt="logo" style="width:40%;"/>
+  <p><em>The logo of this project.</em></p>
+</div>
+
 <div align="center">
     <table>
         <tr>
@@ -128,6 +134,8 @@ flowchart TD
 - **Cost**: ~$0.02 per specification vs 2 engineer-hours
 
 **Total time saved**: ~6 hours for these 3 specs (2 hours each)
+
+> **Note**: Actual execution times may vary depending on API response latency and simulation complexity. The results above are from a representative run.
 
 [Back to Top](#table-of-contents)
 
@@ -439,14 +447,6 @@ User Input -> [Agent Process] -> MCP Call -> [Simulation Process] -> Results
 - Demonstrates multi-agent conversation flow
 - Provides educational value without full execution
 - Full simulation capabilities remain in local version
-
-#### Production Deployment Options
-
-For full cloud deployment with both processes:
-
-1. **Cloud Run** (Recommended): Deploy both agent and MCP server in a single container with process management
-2. **GKE**: Use Kubernetes for multi-container orchestration
-3. **Separate Services**: Deploy agent and MCP server as independent services with network communication
 
 See `deployment/README.md` for deployment guide.
 

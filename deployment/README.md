@@ -2,14 +2,14 @@
 
 This directory contains all files required to deploy Spec2Sim-Agent to **Vertex AI Agent Engine**.
 
-## 📋 Prerequisites
+## Prerequisites
 
 1.  **Google Cloud Account** ($300 free credit for new users)
 2.  **Google Cloud Project** (Billing enabled)
 3.  **ADK CLI**: `pip install google-adk`
 4.  **Google Cloud CLI**: [Installation Guide](https://cloud.google.com/sdk/docs/install)
 
-## 📁 File Description
+## File Description
 
 -   `agent.py` - Agent deployment entry point
 -   `requirements.txt` - Python dependencies
@@ -17,7 +17,7 @@ This directory contains all files required to deploy Spec2Sim-Agent to **Vertex 
 -   `.agent_engine_config.json` - Agent Engine resource configuration
 -   `DEPLOYMENT_GUIDE.md` - Complete deployment guide (detailed instructions)
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Prepare Files
 
@@ -52,7 +52,7 @@ Edit the `.env` file and set your Project ID:
 GOOGLE_CLOUD_PROJECT="YOUR_PROJECT_ID"
 ```
 
-> **⚠️ Security Warning**: The `.env` file may contain sensitive information. Ensure it is not committed to version control (already excluded in `.gitignore`).
+> **Security Warning**: The `.env` file may contain sensitive information. Ensure it is not committed to version control (already excluded in `.gitignore`).
 
 ### 4. Enable APIs
 
@@ -74,7 +74,7 @@ adk deploy agent_engine `
   --agent_engine_config_file=deployment/.agent_engine_config.json
 ```
 
-⏱️ Deployment takes 3-5 minutes
+**Deployment takes 3-5 minutes**
 
 ### 6. Test
 
@@ -113,15 +113,14 @@ async for item in remote_agent.async_stream_query(
 agent_engines.delete(resource_name=remote_agent.resource_name, force=True)
 ```
 
-## 💰 Cost Information
+## Cost Information
 
 -   Agent Engine has a [monthly free tier](https://docs.cloud.google.com/agent-builder/agent-engine/overview#pricing)
 -   This deployment configuration (0-1 instance, 2CPU/4GB) falls within the free tier
 -   **However, please ensure to delete resources after testing!**
 
-## 📚 More Information
+## More Information
 
 For detailed instructions, please check:
--   Complete Deployment Document: `implementation_plan.md` (in artifacts directory)
 -   [ADK Official Documentation](https://google.github.io/adk-docs/)
 -   [Agent Engine Documentation](https://docs.cloud.google.com/agent-builder/agent-engine/overview)
