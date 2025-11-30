@@ -136,7 +136,7 @@ flowchart TD
 
 **Total time saved**: ~6 hours for these 3 specs (2 hours each)
 
-> **Note**: Actual execution times may vary depending on API response latency and simulation complexity. The results above are from a representative run.
+> **Note**: Actual execution results may vary depending on API response latency and simulation complexity. The results above are from a representative run.
 
 [Back to Top](#table-of-contents)
 
