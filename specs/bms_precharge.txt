@@ -1,0 +1,2 @@
+Idle -> Enable -> Precharge -> Run or Error.
+Precharge lasts 2000ms. If voltage < threshold after timeout -> Error.

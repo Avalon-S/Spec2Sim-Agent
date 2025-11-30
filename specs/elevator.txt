@@ -1,0 +1,15 @@
+System: Elevator Control System
+States: Idle, MovingUp, MovingDown, DoorOpen
+
+1. Idle -> MovingUp when request_floor > current_floor.
+2. Idle -> MovingDown when request_floor < current_floor.
+3. MovingUp -> DoorOpen when current_floor == request_floor.
+4. MovingDown -> DoorOpen when current_floor == request_floor.
+5. DoorOpen -> Idle after 5s if no requests.
+6. DoorOpen -> MovingUp after 5s if request_floor > current_floor.
+7. DoorOpen -> MovingDown after 5s if request_floor < current_floor.
+
+Note:
+- The system tracks `current_floor` (starts at 1) and `request_floor`.
+- When in `MovingUp`, `current_floor` increases by 1 every 2s.
+- When in `MovingDown`, `current_floor` decreases by 1 every 2s.

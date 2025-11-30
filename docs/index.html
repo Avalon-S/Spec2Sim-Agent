@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="Spec2Sim-Agent: An AI-Powered Multi-Agent System for Automated Specification Verification">
+    <title>Spec2Sim-Agent | AI-Powered Specification Verification</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <!-- Header -->
+    <header>
+        <div class="container">
+            <h1>Spec2Sim-Agent</h1>
+            <p class="subtitle">AI-Powered Multi-Agent System for Automated Specification Verification</p>
+            <p class="tagline">
+                Transform natural language system specifications into verified simulation code in seconds—automatically.
+            </p>
+            <div class="buttons">
+                <a href="https://github.com/YOUR_USERNAME/spec2sim-agent" class="btn btn-primary">View on GitHub</a>
+                <a href="../README.md" class="btn btn-secondary">Documentation</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Problem Section -->
+    <section id="problem">
+        <div class="container">
+            <h2>The Problem</h2>
+            <p class="section-subtitle">
+                Manual specification translation is error-prone, time-consuming, and repetitive
+            </p>
+
+            <div class="grid-2x2">
+                <div class="card">
+                    <h4>Manual Translation Burden</h4>
+                    <p>Converting ambiguous natural language text into rigorous state machine logic requires significant
+                        engineering effort.</p>
+                </div>
+                <div class="card">
+                    <h4>Boilerplate Code</h4>
+                    <p>Writing repetitive simulation scaffolding for every requirement slows down development cycles.
+                    </p>
+                </div>
+                <div class="card">
+                    <h4>Verification Gap</h4>
+                    <p>No automated way to verify that generated code matches the original specification intent.</p>
+                </div>
+                <div class="card">
+                    <h4>Iteration Overhead</h4>
+                    <p>Hours spent debugging and validating correctness for each specification change.</p>
+                </div>
+            </div>
+
+            <div class="highlight-box">
+                <strong>Result:</strong> Manual implementation requires writing boilerplate code, debugging state
+                machines,
+                and validating behavior—a time-consuming and error-prone process.
+            </div>
+        </div>
+    </section>
+
+    <!-- Interactive Demo Section -->
+    <section id="demo">
+        <div class="container">
+            <h2>Interactive Demo</h2>
+            <p class="section-subtitle">
+                See how Spec2Sim-Agent transforms natural language into verified simulation code
+            </p>
+
+            <div class="demo-selector">
+                <label for="demoSelect">Choose a demo:</label>
+                <select id="demoSelect" onchange="switchDemo()">
+                    <option value="traffic">Traffic Light</option>
+                    <option value="bms">BMS Precharge</option>
+                    <option value="elevator">Elevator Control</option>
+                </select>
+            </div>
+
+            <div class="demo-content">
+                <div class="demo-section">
+                    <h4>Input: Specification</h4>
+                    <pre id="inputSpec" class="code-block"></pre>
+                </div>
+
+                <div class="demo-section">
+                    <h4>Output 1: State Diagram (JSON)</h4>
+                    <pre id="outputDiagram" class="code-block"></pre>
+                </div>
+
+                <div class="demo-section">
+                    <h4>Output 2: Simulation Code</h4>
+                    <pre id="outputCode" class="code-block"></pre>
+                </div>
+
+                <div class="demo-section">
+                    <h4>Output 3: Execution Logs</h4>
+                    <pre id="outputLogs" class="code-block"></pre>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <script src="demo-data.js"></script>
+
+    <!-- Architecture Section -->
+    <section id="architecture">
+        <div class="container">
+            <h2>Multi-Agent Architecture</h2>
+            <p class="section-subtitle">
+                Three specialized agents working together with intelligent self-healing
+            </p>
+
+            <h3>Agent Pipeline</h3>
+            <div class="process-flow">
+                <div class="process-step">
+                    <div class="number">1</div>
+                    <h4>Analyst Agent</h4>
+                    <p>Extracts structured JSON specifications from natural language requirements</p>
+                </div>
+                <div class="process-arrow">→</div>
+                <div class="process-step">
+                    <div class="number">2</div>
+                    <h4>Architect Agent</h4>
+                    <p>Generates complete SimPy simulation code with state machines and test scenarios</p>
+                </div>
+                <div class="process-arrow">→</div>
+                <div class="process-step">
+                    <div class="number">3</div>
+                    <h4>Verifier Agent</h4>
+                    <p>Executes code in MCP sandbox and validates against original specification</p>
+                </div>
+            </div>
+
+            <h3>Self-Healing Loop</h3>
+            <div class="grid-2x2">
+                <div class="card">
+                    <h4>Automatic Error Detection</h4>
+                    <p>When verification fails, the Verifier analyzes execution logs and identifies the root cause of
+                        errors.</p>
+                </div>
+                <div class="card">
+                    <h4>Intelligent Feedback</h4>
+                    <p>Error details and execution traces are sent back to the Architect with specific suggestions for
+                        fixes.</p>
+                </div>
+                <div class="card">
+                    <h4>Code Regeneration</h4>
+                    <p>The Architect uses the feedback to regenerate corrected code, learning from previous mistakes.
+                    </p>
+                </div>
+                <div class="card">
+                    <h4>Retry Decision</h4>
+                    <p>AI determines if the error is fixable (retry) or indicates a fundamental specification issue
+                        (abort).</p>
+                </div>
+            </div>
+
+            <div class="highlight-box">
+                <strong>Key Innovation:</strong> This feedback loop eliminates manual debugging. Unlike traditional code
+                generation that fails silently, our system automatically corrects errors through intelligent agent
+                collaboration.
+            </div>
+
+            <h3>Dual-Process Architecture</h3>
+            <div class="grid-2x2">
+                <div class="card">
+                    <h4>Process 1: Agent Orchestration</h4>
+                    <p>Main process running three AI agents (Analyst, Architect, Verifier) coordinating workflow and
+                        managing the self-healing loop.</p>
+                </div>
+                <div class="card">
+                    <h4>Process 2: Simulation Execution</h4>
+                    <p>Subprocess running MCP server that executes SimPy code in an isolated sandbox and captures all
+                        logs.</p>
+                </div>
+                <div class="card">
+                    <h4>Communication: MCP Protocol</h4>
+                    <p>Processes communicate via Model Context Protocol over stdio, ensuring secure and standardized
+                        code execution.</p>
+                </div>
+                <div class="card">
+                    <h4>Benefits: Security & Isolation</h4>
+                    <p>Simulation crashes don't affect agents. Potentially unsafe code runs in a separate isolated
+                        environment.</p>
+                </div>
+            </div>
+
+            <h3>Technology Stack</h3>
+            <div class="grid-2x2">
+                <div class="card">
+                    <h4>AI Framework</h4>
+                    <p>Google ADK with Gemini 2.5 Flash Lite for intelligent agent orchestration</p>
+                </div>
+                <div class="card">
+                    <h4>Simulation Engine</h4>
+                    <p>SimPy for discrete-event simulation and state machine modeling</p>
+                </div>
+                <div class="card">
+                    <h4>Secure Execution</h4>
+                    <p>Model Context Protocol (MCP) for sandboxed code execution</p>
+                </div>
+                <div class="card">
+                    <h4>User Interface</h4>
+                    <p>Streamlit for real-time visualization and interactive demonstrations</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Performance Section -->
+    <section id="performance">
+        <div class="container">
+            <h2>Performance Results</h2>
+            <p class="section-subtitle">
+                Tested on 3 industrial control systems with 100% success rate
+            </p>
+
+            <div class="results-container">
+                <div class="metric-card">
+                    <div class="metric-value">100%</div>
+                    <div class="metric-label">Success Rate</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">83s</div>
+                    <div class="metric-label">Avg Time</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">~2min</div>
+                    <div class="metric-label">Completion</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">3/3</div>
+                    <div class="metric-label">Demos Pass</div>
+                </div>
+            </div>
+
+            <h3>Detailed Results</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Demo</th>
+                        <th>Time</th>
+                        <th>Status</th>
+                        <th>Code Lines</th>
+                        <th>Complexity</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Traffic Light</td>
+                        <td>8.67s</td>
+                        <td>PASS</td>
+                        <td>86</td>
+                        <td>Time-driven FSM</td>
+                    </tr>
+                    <tr>
+                        <td>BMS Precharge</td>
+                        <td>107.67s</td>
+                        <td>PASS</td>
+                        <td>151</td>
+                        <td>Voltage monitoring</td>
+                    </tr>
+                    <tr>
+                        <td>Elevator Control</td>
+                        <td>133.43s</td>
+                        <td>PASS</td>
+                        <td>205</td>
+                        <td>Multi-floor logic</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="highlight-box">
+                <strong>Measured Performance:</strong> Average completion time of 83 seconds with 100% verified
+                correctness
+                across all test cases.
+            </div>
+        </div>
+    </section>
+
+    <!-- Cloud Deployment Section -->
+    <section id="deployment">
+        <div class="container">
+            <h2>Cloud Deployment</h2>
+            <p class="section-subtitle">
+                Successfully deployed to Google Cloud Vertex AI Agent Engine
+            </p>
+
+            <h3>Deployment Architecture</h3>
+            <div class="grid-2x2">
+                <div class="card">
+                    <h4>Local Version</h4>
+                    <p><strong>Full Functionality:</strong> Dual-process architecture with complete SimPy execution via
+                        MCP server. All agents and self-healing loop fully operational.</p>
+                </div>
+                <div class="card">
+                    <h4>Cloud Version</h4>
+                    <p><strong>Demonstration:</strong> Single-process deployment showcasing multi-agent conversation
+                        flow
+                        and explaining system architecture capabilities.</p>
+                </div>
+                <div class="card">
+                    <h4>Agent Engine Limitation</h4>
+                    <p><strong>Constraint:</strong> Cannot launch subprocesses via subprocess.Popen(), preventing MCP
+                        server
+                        execution in the default container environment.</p>
+                </div>
+                <div class="card">
+                    <h4>Production Options</h4>
+                    <p><strong>Solutions:</strong> Deploy to Cloud Run (with process management), GKE (Kubernetes), or
+                        separate services for full functionality.</p>
+                </div>
+            </div>
+
+            <div class="highlight-box">
+                <strong>Note:</strong> The cloud deployment demonstrates the multi-agent architecture concept. Full
+                simulation
+                capabilities with the self-healing loop remain available in the local version.
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <p>Built with Google ADK and Gemini 2.5 Flash Lite</p>
+            <p style="margin-top: 10px; opacity: 0.8;">Kaggle Agents Intensive Capstone - Enterprise Agents Track</p>
+            <div class="footer-links">
+                <a href="https://github.com/YOUR_USERNAME/spec2sim-agent">GitHub</a>
+                <a href="https://google.github.io/adk-docs/">ADK Documentation</a>
+                <a href="https://ai.google.dev/gemini-api/docs">Gemini API</a>
+            </div>
+        </div>
+    </footer>
+</body>
+
+</html>
