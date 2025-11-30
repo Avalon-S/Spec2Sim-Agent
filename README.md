@@ -34,14 +34,12 @@ Transform natural language system specifications into verified simulation code i
 - [The Solution](#the-solution)
 - [Core Innovation: Self-Healing Loop](#core-innovation-self-healing-loop)
 - [Performance Results](#performance-results)
-- [Architecture](#architecture)
 - [Project Structure](#project-structure)
 - [Quick Start](#quick-start)
 - [Key Features](#key-features)
 - [Technical Highlights](#technical-highlights)
 - [Example: Traffic Light](#example-traffic-light)
 - [Cloud Deployment](#cloud-deployment)
-- [Documentation](#documentation)
 - [Contributing](#contributing)
 - [License](#license)
 - [Acknowledgments](#acknowledgments)
@@ -451,14 +449,6 @@ User Input -> [Agent Process] -> MCP Call -> [Simulation Process] -> Results
 - Full simulation capabilities remain in local version
 
 See `deployment/README.md` for deployment guide.
-
-[Back to Top](#table-of-contents)
-
----
-
-## Documentation
-
-For deployment instructions, see `deployment/README.md`.
 
 [Back to Top](#table-of-contents)
 
