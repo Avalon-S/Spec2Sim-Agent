@@ -4,11 +4,13 @@
 
 Transform natural language system specifications into verified simulation code in seconds—automatically.
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Avalon-S/Spec2Sim-Agent)
+
 ---
 
 
 <div align="center">
-  <img src="doc/logo.png" alt="logo" style="width:40%;"/>
+  <img src="docs/logo.png" alt="logo" style="width:40%;"/>
   <p><em>The logo of this project.</em></p>
 </div>
 
@@ -490,7 +492,3 @@ This project is licensed under the MIT License. See the `LICENSE` file for detai
 - **SimPy Community**: For the excellent discrete-event simulation library
 
 [Back to Top](#table-of-contents)
-
----
-
-**Built with Google ADK and Gemini 2.5 Flash Lite**

@@ -1,39 +1,39 @@
 {
-  "timestamp": "2025-11-30T14:28:40.709260",
+  "timestamp": "2025-11-30T15:11:59.149868",
   "summary": {
     "total": 3,
     "passed": 3,
     "failed": 0,
     "success_rate": 100.0,
-    "average_time": 43.43,
-    "total_time": 130.28
+    "average_time": 30.86,
+    "total_time": 92.59
   },
   "results": [
     {
       "name": "traffic_light",
       "status": "PASS",
-      "time": 13.61,
+      "time": 38.61,
       "success": true,
-      "code_lines": 69,
-      "log_lines": 14,
+      "code_lines": 70,
+      "log_lines": 16,
       "error": null
     },
     {
       "name": "bms_precharge",
       "status": "PASS",
-      "time": 90.42,
+      "time": 24.02,
       "success": true,
-      "code_lines": 133,
-      "log_lines": 39,
+      "code_lines": 117,
+      "log_lines": 29,
       "error": null
     },
     {
       "name": "elevator",
       "status": "PASS",
-      "time": 26.25,
+      "time": 29.96,
       "success": true,
-      "code_lines": 165,
-      "log_lines": 47,
+      "code_lines": 171,
+      "log_lines": 62,
       "error": null
     }
   ]

@@ -20,18 +20,10 @@ Note:
 analyst_agent > ```json
 {
   "states": [
-    {
-      "name": "Idle"
-    },
-    {
-      "name": "MovingUp"
-    },
-    {
-      "name": "MovingDown"
-    },
-    {
-      "name": "DoorOpen"
-    }
+    {"name": "Idle"},
+    {"name": "MovingUp"},
+    {"name": "MovingDown"},
+    {"name": "DoorOpen"}
   ],
   "transitions": [
     {
@@ -57,7 +49,7 @@ analyst_agent > ```json
     {
       "from": "DoorOpen",
       "to": "Idle",
-      "condition": "no requests"
+      "condition": "no_requests"
     },
     {
       "from": "DoorOpen",
@@ -71,18 +63,9 @@ analyst_agent > ```json
     }
   ],
   "constraints": [
-    {
-      "param": "DoorOpen_duration",
-      "value": 5
-    },
-    {
-      "param": "MovingUp_increment_time",
-      "value": 2
-    },
-    {
-      "param": "MovingDown_decrement_time",
-      "value": 2
-    }
+    {"param": "DoorOpen_duration", "value": 5},
+    {"param": "MovingUp_increment_interval", "value": 2},
+    {"param": "MovingDown_decrement_interval", "value": 2}
   ]
 }
 ```
@@ -90,7 +73,7 @@ analyst_agent > ```json
  ### Created new session: debug_session_id
 
 User > Specification:
-{'states': [{'name': 'Idle'}, {'name': 'MovingUp'}, {'name': 'MovingDown'}, {'name': 'DoorOpen'}], 'transitions': [{'from': 'Idle', 'to': 'MovingUp', 'condition': 'request_floor > current_floor'}, {'from': 'Idle', 'to': 'MovingDown', 'condition': 'request_floor < current_floor'}, {'from': 'MovingUp', 'to': 'DoorOpen', 'condition': 'current_floor == request_floor'}, {'from': 'MovingDown', 'to': 'DoorOpen', 'condition': 'current_floor == request_floor'}, {'from': 'DoorOpen', 'to': 'Idle', 'condition': 'no requests'}, {'from': 'DoorOpen', 'to': 'MovingUp', 'condition': 'request_floor > current_floor'}, {'from': 'DoorOpen', 'to': 'MovingDown', 'condition': 'request_floor < current_floor'}], 'constraints': [{'param': 'DoorOpen_duration', 'value': 5}, {'param': 'MovingUp_increment_time', 'value': 2}, {'param': 'MovingDown_decrement_time', 'value': 2}]}
+{'states': [{'name': 'Idle'}, {'name': 'MovingUp'}, {'name': 'MovingDown'}, {'name': 'DoorOpen'}], 'transitions': [{'from': 'Idle', 'to': 'MovingUp', 'condition': 'request_floor > current_floor'}, {'from': 'Idle', 'to': 'MovingDown', 'condition': 'request_floor < current_floor'}, {'from': 'MovingUp', 'to': 'DoorOpen', 'condition': 'current_floor == request_floor'}, {'from': 'MovingDown', 'to': 'DoorOpen', 'condition': 'current_floor == request_floor'}, {'from': 'DoorOpen', 'to': 'Idle', 'condition': 'no_requests'}, {'from': 'DoorOpen', 'to': 'MovingUp', 'condition': 'request_floor > current_floor'}, {'from': 'DoorOpen', 'to': 'MovingDown', 'condition': 'request_floor < current_floor'}], 'constraints': [{'param': 'DoorOpen_duration', 'value': 5}, {'param': 'MovingUp_increment_interval', 'value': 2}, {'param': 'MovingDown_decrement_interval', 'value': 2}]}
 architect_agent > ```python
 import simpy
 import random
@@ -99,103 +82,44 @@ class StateMachine:
     def __init__(self, env):
         self.env = env
         self.current_state = 'Idle'
-        self.request_floor = 0
         self.current_floor = 0
+        self.request_floor = 0
+        self.no_requests = True
         self.constraints = {
             'DoorOpen_duration': 5,
-            'MovingUp_increment_time': 2,
-            'MovingDown_decrement_time': 2,
+            'MovingUp_increment_interval': 2,
+            'MovingDown_decrement_interval': 2,
         }
-        self.no_requests_flag = True # Default to True for initial state
+        self.state_transitions = {
+            'Idle': [
+                {'to': 'MovingUp', 'condition': lambda: self.request_floor > self.current_floor, 'reason': 'request_floor > current_floor'},
+                {'to': 'MovingDown', 'condition': lambda: self.request_floor < self.current_floor, 'reason': 'request_floor < current_floor'}
+            ],
+            'MovingUp': [
+                {'to': 'DoorOpen', 'condition': lambda: self.current_floor == self.request_floor, 'reason': 'current_floor == request_floor'}
+            ],
+            'MovingDown': [
+                {'to': 'DoorOpen', 'condition': lambda: self.current_floor == self.request_floor, 'reason': 'current_floor == request_floor'}
+            ],
+            'DoorOpen': [
+                {'to': 'Idle', 'condition': lambda: self.no_requests, 'reason': 'no_requests'},
+                {'to': 'MovingUp', 'condition': lambda: self.request_floor > self.current_floor, 'reason': 'request_floor > current_floor'},
+                {'to': 'MovingDown', 'condition': lambda: self.request_floor < self.current_floor, 'reason': 'request_floor < current_floor'}
+            ]
+        }
+        print("[SIM] Starting simulation")
 
-    def log_transition(self, from_state, to_state, condition):
-        print(f"[SIM][t={self.env.now:.2f}] TRANSITION {from_state} -> {to_state} (reason={condition})")
+    def _log_transition(self, from_state, to_state, reason):
+        print(f"[SIM][t={self.env.now:.2f}] TRANSITION {from_state} -> {to_state} (reason={reason})")
 
-    def log_state_entry(self, state_name):
+    def _log_state_entry(self, state_name):
         print(f"[SIM][t={self.env.now:.2f}] ENTER state={state_name}")
 
-    def log_wait(self, duration, event_name):
-        print(f"[SIM][t={self.env.now:.2f}] WAIT {duration:.2f}s for {event_name}")
+    def _log_wait(self, duration, event_name):
+        print(f"[SIM][t={self.env.now:.2f}] WAIT {duration}s for {event_name}")
 
-    def idle(self):
-        self.log_state_entry('Idle')
-        while True:
-            # Check transitions from Idle
-            if self.request_floor > self.current_floor:
-                self.log_transition('Idle', 'MovingUp', 'request_floor > current_floor')
-                self.current_state = 'MovingUp'
-                return  # Exit the current state generator
-            elif self.request_floor < self.current_floor:
-                self.log_transition('Idle', 'MovingDown', 'request_floor < current_floor')
-                self.current_state = 'MovingDown'
-                return  # Exit the current state generator
-            else:
-                # Stay in Idle, yield a small timeout to allow other processes to run
-                yield self.env.timeout(0.001)
-
-
-    def moving_up(self):
-        self.log_state_entry('MovingUp')
-        duration = self.constraints.get('MovingUp_increment_time', 2) # Default to 2s if not found
-        self.log_wait(duration, 'moving up to next floor')
-        yield self.env.timeout(duration)
-        self.current_floor += 1
-        # Check transitions from MovingUp
-        if self.current_floor == self.request_floor:
-            self.log_transition('MovingUp', 'DoorOpen', 'current_floor == request_floor')
-            self.current_state = 'DoorOpen'
-            return
-        else:
-            # Continue moving up if not at the request floor yet
-            # This logic assumes continuous movement until the target floor is reached.
-            # If it needs to stop at intermediate floors, the logic would be more complex.
-            # For this simulation, we will loop back to simulate continued movement in the same state.
-            # We don't exit and re-enter the state.
-            pass # Stay in MovingUp
-
-    def moving_down(self):
-        self.log_state_entry('MovingDown')
-        duration = self.constraints.get('MovingDown_decrement_time', 2) # Default to 2s if not found
-        self.log_wait(duration, 'moving down to next floor')
-        yield self.env.timeout(duration)
-        self.current_floor -= 1
-        # Check transitions from MovingDown
-        if self.current_floor == self.request_floor:
-            self.log_transition('MovingDown', 'DoorOpen', 'current_floor == request_floor')
-            self.current_state = 'DoorOpen'
-            return
-        else:
-            # Continue moving down if not at the request floor yet
-            pass # Stay in MovingDown
-
-    def door_open(self):
-        self.log_state_entry('DoorOpen')
-        duration = self.constraints.get('DoorOpen_duration', 5) # Default to 5s if not found
-        self.log_wait(duration, 'door open duration')
-        yield self.env.timeout(duration)
-        
-        # After door open duration, check for next actions
-        if self.request_floor == self.current_floor: # This condition is implicitly true if we reached DoorOpen
-            self.no_requests_flag = True # Assuming no new requests while door is open
-
-        # Check transitions from DoorOpen
-        if self.no_requests_flag:
-            self.log_transition('DoorOpen', 'Idle', 'no requests')
-            self.current_state = 'Idle'
-            return
-        elif self.request_floor > self.current_floor:
-            self.log_transition('DoorOpen', 'MovingUp', 'request_floor > current_floor')
-            self.current_state = 'MovingUp'
-            return
-        elif self.request_floor < self.current_floor:
-            self.log_transition('DoorOpen', 'MovingDown', 'request_floor < current_floor')
-            self.current_state = 'MovingDown'
-            return
-        else: # Default to Idle if no other condition met (e.g. stuck at a floor with no requests)
-            self.log_transition('DoorOpen', 'Idle', 'default to Idle')
-            self.current_state = 'Idle'
-            return
-
+    def _log_end(self, final_state):
+        print(f"[SIM][t={self.env.now:.2f}] END state={final_state}")
 
     def run(self):
         while True:
@@ -208,54 +132,119 @@ class StateMachine:
             elif self.current_state == 'DoorOpen':
                 yield from self.door_open()
             else:
-                # Should not happen
-                yield self.env.timeout(1)
+                # Should not happen if all states are covered
+                yield env.timeout(1) # Prevent infinite loop
+
+    def _check_transitions(self, current_state_name):
+        possible_transitions = self.state_transitions.get(current_state_name, [])
+        for transition in possible_transitions:
+            if transition['condition']():
+                self._log_transition(self.current_state, transition['to'], transition['reason'])
+                self.current_state = transition['to']
+                return True
+        return False
+
+    def idle(self):
+        self._log_state_entry('Idle')
+        if self._check_transitions('Idle'):
+            return # Transition happened immediately
+        # If no transition, wait for a request.
+        # In a real system, this would be an event-driven wait.
+        # For simulation purposes, we'll assume an external process sets requests.
+        yield self.env.timeout(0.1) # Small timeout to yield control and allow other processes to run
+
+    def moving_up(self):
+        self._log_state_entry('MovingUp')
+        increment_interval = self.constraints.get('MovingUp_increment_interval', 2)
+        self._log_wait(increment_interval, 'floor_reached')
+        yield self.env.timeout(increment_interval)
+        self.current_floor += 1
+        print(f"[SIM][t={self.env.now:.2f}] Current floor: {self.current_floor}")
+        if not self._check_transitions('MovingUp'):
+            # If no transition occurred, stay in MovingUp and potentially continue moving if needed
+            # This logic implies that MovingUp state itself might not cause a transition
+            # but rather waiting for the floor condition to be met in the next iteration.
+            # For this simple model, we assume a transition will eventually occur.
+            # If it doesn't, the loop will just re-enter moving_up.
+            # To ensure progress, we need to re-evaluate transitions.
+            # A direct yield here would be a blocking call if no transition is met.
+            # The current structure relies on the external process or the loop to re-evaluate.
+            # If current_floor == request_floor, the next iteration will transition.
+            pass
+
+    def moving_down(self):
+        self._log_state_entry('MovingDown')
+        decrement_interval = self.constraints.get('MovingDown_decrement_interval', 2)
+        self._log_wait(decrement_interval, 'floor_reached')
+        yield self.env.timeout(decrement_interval)
+        self.current_floor -= 1
+        print(f"[SIM][t={self.env.now:.2f}] Current floor: {self.current_floor}")
+        if not self._check_transitions('MovingDown'):
+            # Similar logic as moving_up
+            pass
+
+    def door_open(self):
+        self._log_state_entry('DoorOpen')
+        door_duration = self.constraints.get('DoorOpen_duration', 5)
+        self._log_wait(door_duration, 'door_closed')
+        yield self.env.timeout(door_duration)
+        # After door duration, check for new requests or stay idle if none.
+        self._check_transitions('DoorOpen')
+
+
+def test_scenarios(env, state_machine):
+    # Scenario: Elevator starts at floor 0, receives requests, moves, opens doors, and idles.
+    print("[SIM] Starting test_scenarios")
+
+    # Initial state: Idle, floor 0
+    yield env.timeout(1)
+
+    # Request to go up to floor 3
+    state_machine.request_floor = 3
+    state_machine.no_requests = False
+    print(f"[SIM][t={env.now:.2f}] Received request for floor {state_machine.request_floor}")
+    yield env.timeout(0.5) # Allow state machine to process the request
+
+    # Simulate moving up
+    # state_machine.current_floor will increment in moving_up state
+    yield env.timeout(state_machine.constraints['MovingUp_increment_interval'] * 3 + 0.1) # Wait for it to reach floor 3
+
+    # Request to go down to floor 1
+    state_machine.request_floor = 1
+    print(f"[SIM][t={env.now:.2f}] Received request for floor {state_machine.request_floor}")
+    yield env.timeout(0.5) # Allow state machine to process the request
+
+    # Simulate moving down
+    # state_machine.current_floor will decrement in moving_down state
+    yield env.timeout(state_machine.constraints['MovingDown_decrement_interval'] * 2 + 0.1) # Wait for it to reach floor 1
+
+    # No more requests
+    state_machine.no_requests = True
+    print(f"[SIM][t={env.now:.2f}] No more requests.")
+    yield env.timeout(0.5)
+
+    # Request to go up to floor 5
+    state_machine.request_floor = 5
+    state_machine.no_requests = False
+    print(f"[SIM][t={env.now:.2f}] Received request for floor {state_machine.request_floor}")
+    yield env.timeout(0.5)
+
+    yield env.timeout(state_machine.constraints['MovingUp_increment_interval'] * 4 + 0.1)
+
+    # End of simulation scenario
+    print("[SIM] Test scenarios finished.")
+
 
 def run_simulation():
     env = simpy.Environment()
     state_machine = StateMachine(env)
-
-    # Use a separate process to simulate external requests (Input-Driven)
-    def test_scenarios(env, sm):
-        yield env.timeout(1) # Initial delay
-
-        # Scenario 1: Move up
-        print("[SIM] --- SCENARIO 1: REQUEST FLOOR 5 ---")
-        sm.request_floor = 5
-        sm.no_requests_flag = False # Indicate there is a request
-        yield env.timeout(2) # Allow state machine to process the request
-
-        # Scenario 2: Request floor below current (after reaching target)
-        yield env.timeout(10) # Wait a bit after reaching floor 5
-        sm.request_floor = 2
-        sm.no_requests_flag = False
-        yield env.timeout(2)
-
-        # Scenario 3: No requests, door should close and go to Idle
-        yield env.timeout(10) # Wait a bit
-        sm.request_floor = sm.current_floor # Set request to current floor to simulate "no requests" for next move
-        sm.no_requests_flag = True
-        yield env.timeout(2)
-
-        # Scenario 4: Request floor above current from Idle
-        yield env.timeout(5)
-        sm.request_floor = 7
-        sm.no_requests_flag = False
-        yield env.timeout(2)
-
-        # Scenario 5: Wait at door open and no new requests
-        yield env.timeout(15)
-        sm.no_requests_flag = True
-        yield env.timeout(2)
-
-
-    print("[SIM] Starting simulation")
     env.process(state_machine.run())
-    env.process(test_scenarios(env, state_machine))
-    env.run(until=60) # Run for a total of 60 seconds
-    print(f"[SIM] END simulation at t={env.now:.2f}")
+    env.process(test_scenarios(env, state_machine)) # Use test_scenarios for input-driven system
+    env.run(until=30) # Run simulation for a specific duration
+    state_machine._log_end(state_machine.current_state)
+    print("[SIM] END simulation")
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     run_simulation()
 ```
 
@@ -302,7 +291,7 @@ User >
     {
       "from": "DoorOpen",
       "to": "Idle",
-      "condition": "no requests"
+      "condition": "no_requests"
     },
     {
       "from": "DoorOpen",
@@ -321,11 +310,11 @@ User >
       "value": 5
     },
     {
-      "param": "MovingUp_increment_time",
+      "param": "MovingUp_increment_interval",
       "value": 2
     },
     {
-      "param": "MovingDown_decrement_time",
+      "param": "MovingDown_decrement_interval",
       "value": 2
     }
   ]
@@ -340,103 +329,44 @@ class StateMachine:
     def __init__(self, env):
         self.env = env
         self.current_state = 'Idle'
-        self.request_floor = 0
         self.current_floor = 0
+        self.request_floor = 0
+        self.no_requests = True
         self.constraints = {
             'DoorOpen_duration': 5,
-            'MovingUp_increment_time': 2,
-            'MovingDown_decrement_time': 2,
+            'MovingUp_increment_interval': 2,
+            'MovingDown_decrement_interval': 2,
         }
-        self.no_requests_flag = True # Default to True for initial state
+        self.state_transitions = {
+            'Idle': [
+                {'to': 'MovingUp', 'condition': lambda: self.request_floor > self.current_floor, 'reason': 'request_floor > current_floor'},
+                {'to': 'MovingDown', 'condition': lambda: self.request_floor < self.current_floor, 'reason': 'request_floor < current_floor'}
+            ],
+            'MovingUp': [
+                {'to': 'DoorOpen', 'condition': lambda: self.current_floor == self.request_floor, 'reason': 'current_floor == request_floor'}
+            ],
+            'MovingDown': [
+                {'to': 'DoorOpen', 'condition': lambda: self.current_floor == self.request_floor, 'reason': 'current_floor == request_floor'}
+            ],
+            'DoorOpen': [
+                {'to': 'Idle', 'condition': lambda: self.no_requests, 'reason': 'no_requests'},
+                {'to': 'MovingUp', 'condition': lambda: self.request_floor > self.current_floor, 'reason': 'request_floor > current_floor'},
+                {'to': 'MovingDown', 'condition': lambda: self.request_floor < self.current_floor, 'reason': 'request_floor < current_floor'}
+            ]
+        }
+        print("[SIM] Starting simulation")
 
-    def log_transition(self, from_state, to_state, condition):
-        print(f"[SIM][t={self.env.now:.2f}] TRANSITION {from_state} -> {to_state} (reason={condition})")
+    def _log_transition(self, from_state, to_state, reason):
+        print(f"[SIM][t={self.env.now:.2f}] TRANSITION {from_state} -> {to_state} (reason={reason})")
 
-    def log_state_entry(self, state_name):
+    def _log_state_entry(self, state_name):
         print(f"[SIM][t={self.env.now:.2f}] ENTER state={state_name}")
 
-    def log_wait(self, duration, event_name):
-        print(f"[SIM][t={self.env.now:.2f}] WAIT {duration:.2f}s for {event_name}")
+    def _log_wait(self, duration, event_name):
+        print(f"[SIM][t={self.env.now:.2f}] WAIT {duration}s for {event_name}")
 
-    def idle(self):
-        self.log_state_entry('Idle')
-        while True:
-            # Check transitions from Idle
-            if self.request_floor > self.current_floor:
-                self.log_transition('Idle', 'MovingUp', 'request_floor > current_floor')
-                self.current_state = 'MovingUp'
-                return  # Exit the current state generator
-            elif self.request_floor < self.current_floor:
-                self.log_transition('Idle', 'MovingDown', 'request_floor < current_floor')
-                self.current_state = 'MovingDown'
-                return  # Exit the current state generator
-            else:
-                # Stay in Idle, yield a small timeout to allow other processes to run
-                yield self.env.timeout(0.001)
-
-
-    def moving_up(self):
-        self.log_state_entry('MovingUp')
-        duration = self.constraints.get('MovingUp_increment_time', 2) # Default to 2s if not found
-        self.log_wait(duration, 'moving up to next floor')
-        yield self.env.timeout(duration)
-        self.current_floor += 1
-        # Check transitions from MovingUp
-        if self.current_floor == self.request_floor:
-            self.log_transition('MovingUp', 'DoorOpen', 'current_floor == request_floor')
-            self.current_state = 'DoorOpen'
-            return
-        else:
-            # Continue moving up if not at the request floor yet
-            # This logic assumes continuous movement until the target floor is reached.
-            # If it needs to stop at intermediate floors, the logic would be more complex.
-            # For this simulation, we will loop back to simulate continued movement in the same state.
-            # We don't exit and re-enter the state.
-            pass # Stay in MovingUp
-
-    def moving_down(self):
-        self.log_state_entry('MovingDown')
-        duration = self.constraints.get('MovingDown_decrement_time', 2) # Default to 2s if not found
-        self.log_wait(duration, 'moving down to next floor')
-        yield self.env.timeout(duration)
-        self.current_floor -= 1
-        # Check transitions from MovingDown
-        if self.current_floor == self.request_floor:
-            self.log_transition('MovingDown', 'DoorOpen', 'current_floor == request_floor')
-            self.current_state = 'DoorOpen'
-            return
-        else:
-            # Continue moving down if not at the request floor yet
-            pass # Stay in MovingDown
-
-    def door_open(self):
-        self.log_state_entry('DoorOpen')
-        duration = self.constraints.get('DoorOpen_duration', 5) # Default to 5s if not found
-        self.log_wait(duration, 'door open duration')
-        yield self.env.timeout(duration)
-        
-        # After door open duration, check for next actions
-        if self.request_floor == self.current_floor: # This condition is implicitly true if we reached DoorOpen
-            self.no_requests_flag = True # Assuming no new requests while door is open
-
-        # Check transitions from DoorOpen
-        if self.no_requests_flag:
-            self.log_transition('DoorOpen', 'Idle', 'no requests')
-            self.current_state = 'Idle'
-            return
-        elif self.request_floor > self.current_floor:
-            self.log_transition('DoorOpen', 'MovingUp', 'request_floor > current_floor')
-            self.current_state = 'MovingUp'
-            return
-        elif self.request_floor < self.current_floor:
-            self.log_transition('DoorOpen', 'MovingDown', 'request_floor < current_floor')
-            self.current_state = 'MovingDown'
-            return
-        else: # Default to Idle if no other condition met (e.g. stuck at a floor with no requests)
-            self.log_transition('DoorOpen', 'Idle', 'default to Idle')
-            self.current_state = 'Idle'
-            return
-
+    def _log_end(self, final_state):
+        print(f"[SIM][t={self.env.now:.2f}] END state={final_state}")
 
     def run(self):
         while True:
@@ -449,60 +379,125 @@ class StateMachine:
             elif self.current_state == 'DoorOpen':
                 yield from self.door_open()
             else:
-                # Should not happen
-                yield self.env.timeout(1)
+                # Should not happen if all states are covered
+                yield env.timeout(1) # Prevent infinite loop
+
+    def _check_transitions(self, current_state_name):
+        possible_transitions = self.state_transitions.get(current_state_name, [])
+        for transition in possible_transitions:
+            if transition['condition']():
+                self._log_transition(self.current_state, transition['to'], transition['reason'])
+                self.current_state = transition['to']
+                return True
+        return False
+
+    def idle(self):
+        self._log_state_entry('Idle')
+        if self._check_transitions('Idle'):
+            return # Transition happened immediately
+        # If no transition, wait for a request.
+        # In a real system, this would be an event-driven wait.
+        # For simulation purposes, we'll assume an external process sets requests.
+        yield self.env.timeout(0.1) # Small timeout to yield control and allow other processes to run
+
+    def moving_up(self):
+        self._log_state_entry('MovingUp')
+        increment_interval = self.constraints.get('MovingUp_increment_interval', 2)
+        self._log_wait(increment_interval, 'floor_reached')
+        yield self.env.timeout(increment_interval)
+        self.current_floor += 1
+        print(f"[SIM][t={self.env.now:.2f}] Current floor: {self.current_floor}")
+        if not self._check_transitions('MovingUp'):
+            # If no transition occurred, stay in MovingUp and potentially continue moving if needed
+            # This logic implies that MovingUp state itself might not cause a transition
+            # but rather waiting for the floor condition to be met in the next iteration.
+            # For this simple model, we assume a transition will eventually occur.
+            # If it doesn't, the loop will just re-enter moving_up.
+            # To ensure progress, we need to re-evaluate transitions.
+            # A direct yield here would be a blocking call if no transition is met.
+            # The current structure relies on the external process or the loop to re-evaluate.
+            # If current_floor == request_floor, the next iteration will transition.
+            pass
+
+    def moving_down(self):
+        self._log_state_entry('MovingDown')
+        decrement_interval = self.constraints.get('MovingDown_decrement_interval', 2)
+        self._log_wait(decrement_interval, 'floor_reached')
+        yield self.env.timeout(decrement_interval)
+        self.current_floor -= 1
+        print(f"[SIM][t={self.env.now:.2f}] Current floor: {self.current_floor}")
+        if not self._check_transitions('MovingDown'):
+            # Similar logic as moving_up
+            pass
+
+    def door_open(self):
+        self._log_state_entry('DoorOpen')
+        door_duration = self.constraints.get('DoorOpen_duration', 5)
+        self._log_wait(door_duration, 'door_closed')
+        yield self.env.timeout(door_duration)
+        # After door duration, check for new requests or stay idle if none.
+        self._check_transitions('DoorOpen')
+
+
+def test_scenarios(env, state_machine):
+    # Scenario: Elevator starts at floor 0, receives requests, moves, opens doors, and idles.
+    print("[SIM] Starting test_scenarios")
+
+    # Initial state: Idle, floor 0
+    yield env.timeout(1)
+
+    # Request to go up to floor 3
+    state_machine.request_floor = 3
+    state_machine.no_requests = False
+    print(f"[SIM][t={env.now:.2f}] Received request for floor {state_machine.request_floor}")
+    yield env.timeout(0.5) # Allow state machine to process the request
+
+    # Simulate moving up
+    # state_machine.current_floor will increment in moving_up state
+    yield env.timeout(state_machine.constraints['MovingUp_increment_interval'] * 3 + 0.1) # Wait for it to reach floor 3
+
+    # Request to go down to floor 1
+    state_machine.request_floor = 1
+    print(f"[SIM][t={env.now:.2f}] Received request for floor {state_machine.request_floor}")
+    yield env.timeout(0.5) # Allow state machine to process the request
+
+    # Simulate moving down
+    # state_machine.current_floor will decrement in moving_down state
+    yield env.timeout(state_machine.constraints['MovingDown_decrement_interval'] * 2 + 0.1) # Wait for it to reach floor 1
+
+    # No more requests
+    state_machine.no_requests = True
+    print(f"[SIM][t={env.now:.2f}] No more requests.")
+    yield env.timeout(0.5)
+
+    # Request to go up to floor 5
+    state_machine.request_floor = 5
+    state_machine.no_requests = False
+    print(f"[SIM][t={env.now:.2f}] Received request for floor {state_machine.request_floor}")
+    yield env.timeout(0.5)
+
+    yield env.timeout(state_machine.constraints['MovingUp_increment_interval'] * 4 + 0.1)
+
+    # End of simulation scenario
+    print("[SIM] Test scenarios finished.")
+
 
 def run_simulation():
     env = simpy.Environment()
     state_machine = StateMachine(env)
-
-    # Use a separate process to simulate external requests (Input-Driven)
-    def test_scenarios(env, sm):
-        yield env.timeout(1) # Initial delay
-
-        # Scenario 1: Move up
-        print("[SIM] --- SCENARIO 1: REQUEST FLOOR 5 ---")
-        sm.request_floor = 5
-        sm.no_requests_flag = False # Indicate there is a request
-        yield env.timeout(2) # Allow state machine to process the request
-
-        # Scenario 2: Request floor below current (after reaching target)
-        yield env.timeout(10) # Wait a bit after reaching floor 5
-        sm.request_floor = 2
-        sm.no_requests_flag = False
-        yield env.timeout(2)
-
-        # Scenario 3: No requests, door should close and go to Idle
-        yield env.timeout(10) # Wait a bit
-        sm.request_floor = sm.current_floor # Set request to current floor to simulate "no requests" for next move
-        sm.no_requests_flag = True
-        yield env.timeout(2)
-
-        # Scenario 4: Request floor above current from Idle
-        yield env.timeout(5)
-        sm.request_floor = 7
-        sm.no_requests_flag = False
-        yield env.timeout(2)
-
-        # Scenario 5: Wait at door open and no new requests
-        yield env.timeout(15)
-        sm.no_requests_flag = True
-        yield env.timeout(2)
-
-
-    print("[SIM] Starting simulation")
     env.process(state_machine.run())
-    env.process(test_scenarios(env, state_machine))
-    env.run(until=60) # Run for a total of 60 seconds
-    print(f"[SIM] END simulation at t={env.now:.2f}")
+    env.process(test_scenarios(env, state_machine)) # Use test_scenarios for input-driven system
+    env.run(until=30) # Run simulation for a specific duration
+    state_machine._log_end(state_machine.current_state)
+    print("[SIM] END simulation")
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     run_simulation()
         ```
         
         Please execute this code and verify the results.
         
-verifier_agent > {"status": "PASS", "reason": "The simulation ran successfully and the logs indicate that all transitions and state changes occurred as expected according to the specification. No errors were reported.", "retry": false}
+verifier_agent > {"status": "PASS", "reason": "The simulation executed successfully and the logs indicate that the state transitions occurred as expected according to the provided specification. The elevator moved up and down, and the door open/close logic was followed. The constraints on durations and intervals were also respected.", "retry": false}
 
 [DEBUG] Sessions dict keys: ['InMemoryRunner']
 [DEBUG] Session value type for key 'InMemoryRunner': <class 'dict'>
@@ -526,5 +521,5 @@ verifier_agent > {"status": "PASS", "reason": "The simulation ran successfully a
 [DEBUG] Event 2 type: <class 'google.adk.events.event.Event'>
 [DEBUG] Event content parts: 1
 [DEBUG] Part type: <class 'google.genai.types.Part'>
-[DEBUG] Part text (snippet): {"status": "PASS", "reason": "The simulation ran s
+[DEBUG] Part text (snippet): {"status": "PASS", "reason": "The simulation execu
 [DEBUG] Part function_response: Yes

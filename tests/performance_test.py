@@ -177,7 +177,7 @@ def generate_markdown_report(data):
 """
     
     for r in results:
-        status_emoji = "✅ PASS" if r['success'] else "❌ FAIL"
+        status_emoji = "PASS" if r['success'] else "❌ FAIL"
         md += f"| {r['name']} | {r['time']}s | {status_emoji} | {r['code_lines']} | {r['log_lines']} |\n"
     
     md += f"""

@@ -30,6 +30,608 @@ User > Specification:
 {'states': [{'name': 'Red'}, {'name': 'Green'}, {'name': 'Yellow'}], 'transitions': [{'from': 'Red', 'to': 'Green', 'condition': '30s elapsed'}, {'from': 'Green', 'to': 'Yellow', 'condition': '20s elapsed'}, {'from': 'Yellow', 'to': 'Red', 'condition': '3s elapsed'}], 'constraints': [{'param': 'Red_duration', 'value': 30}, {'param': 'Green_duration', 'value': 20}, {'param': 'Yellow_duration', 'value': 3}]}
 architect_agent > ```python
 import simpy
+import logging
+
+# Configure logging for structured output
+logging.basicConfig(level=logging.INFO, format='[SIM]%(message)s')
+log = logging.getLogger(__name__)
+
+class StateMachine:
+    def __init__(self, env, constraints):
+        self.env = env
+        self.constraints = constraints
+        self.current_state = 'Red'
+        self.state_transitions = {
+            'Red': {'Green': '30s elapsed'},
+            'Green': {'Yellow': '20s elapsed'},
+            'Yellow': {'Red': '3s elapsed'}
+        }
+        self.state_entry_times = {}
+
+    def log_state_change(self, from_state, to_state, condition):
+        log.info(f"[t={self.env.now:.2f}] TRANSITION {from_state} -> {to_state} (reason={condition})")
+
+    def enter_state(self, state_name):
+        self.state_entry_times[state_name] = self.env.now
+        log.info(f"[t={self.env.now:.2f}] ENTER state={state_name}")
+
+    def wait_for_event(self, event_name, duration):
+        log.info(f"[t={self.env.now:.2f}] WAIT {duration:.2f}s for {event_name}")
+        yield self.env.timeout(duration)
+
+    def _get_constraint_value(self, param_name, default_value):
+        return self.constraints.get(param_name, default_value)
+
+    def _parse_duration_from_condition(self, condition):
+        parts = condition.split()
+        for part in parts:
+            if part.endswith('s') and part[:-1].isdigit():
+                return int(part[:-1])
+        return None # Should not happen based on spec for this case
+
+    def red(self):
+        self.enter_state('Red')
+        # Transition to Green after Red_duration
+        red_duration = self._get_constraint_value('Red_duration', 30)
+        yield self.wait_for_event('Red duration elapsed', red_duration)
+        self.log_state_change('Red', 'Green', '30s elapsed')
+        self.current_state = 'Green'
+
+    def green(self):
+        self.enter_state('Green')
+        # Transition to Yellow after Green_duration
+        green_duration = self._get_constraint_value('Green_duration', 20)
+        yield self.wait_for_event('Green duration elapsed', green_duration)
+        self.log_state_change('Green', 'Yellow', '20s elapsed')
+        self.current_state = 'Yellow'
+
+    def yellow(self):
+        self.enter_state('Yellow')
+        # Transition to Red after Yellow_duration
+        yellow_duration = self._get_constraint_value('Yellow_duration', 3)
+        yield self.wait_for_event('Yellow duration elapsed', yellow_duration)
+        self.log_state_change('Yellow', 'Red', '3s elapsed')
+        self.current_state = 'Red'
+
+    def run(self):
+        while True:
+            if self.current_state == 'Red':
+                yield from self.red()
+            elif self.current_state == 'Green':
+                yield from self.green()
+            elif self.current_state == 'Yellow':
+                yield from self.yellow()
+            else:
+                # Should not happen with defined states
+                log.error(f"Unknown state: {self.current_state}")
+                break
+            # Add a small timeout to prevent tight loops if state changes immediately
+            if self.env.now > 0: # Avoid timeout(0) on first iteration if needed
+                 yield self.env.timeout(0.001)
+
+
+def run_simulation():
+    log.info("[SIM] Starting simulation")
+    env = simpy.Environment()
+    constraints = {
+        'Red_duration': 30,
+        'Green_duration': 20,
+        'Yellow_duration': 3
+    }
+    state_machine = StateMachine(env, constraints)
+
+    env.process(state_machine.run())
+
+    # This is a time-driven system, so we just run for a fixed duration
+    # The durations are dictated by the constraints and transitions.
+    simulation_duration = constraints['Red_duration'] + constraints['Green_duration'] + constraints['Yellow_duration'] * 2 # Run for at least two cycles to show transitions
+    env.run(until=simulation_duration)
+
+    log.info(f"[SIM] END simulation at t={env.now:.2f}")
+
+if __name__ == '__main__':
+    run_simulation()
+```
+
+ ### Created new session: debug_session_id
+
+User > 
+        Specification:
+        {
+  "states": [
+    {
+      "name": "Red"
+    },
+    {
+      "name": "Green"
+    },
+    {
+      "name": "Yellow"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "Red",
+      "to": "Green",
+      "condition": "30s elapsed"
+    },
+    {
+      "from": "Green",
+      "to": "Yellow",
+      "condition": "20s elapsed"
+    },
+    {
+      "from": "Yellow",
+      "to": "Red",
+      "condition": "3s elapsed"
+    }
+  ],
+  "constraints": [
+    {
+      "param": "Red_duration",
+      "value": 30
+    },
+    {
+      "param": "Green_duration",
+      "value": 20
+    },
+    {
+      "param": "Yellow_duration",
+      "value": 3
+    }
+  ]
+}
+        
+        Simulation Code:
+        ```python
+        import simpy
+import logging
+
+# Configure logging for structured output
+logging.basicConfig(level=logging.INFO, format='[SIM]%(message)s')
+log = logging.getLogger(__name__)
+
+class StateMachine:
+    def __init__(self, env, constraints):
+        self.env = env
+        self.constraints = constraints
+        self.current_state = 'Red'
+        self.state_transitions = {
+            'Red': {'Green': '30s elapsed'},
+            'Green': {'Yellow': '20s elapsed'},
+            'Yellow': {'Red': '3s elapsed'}
+        }
+        self.state_entry_times = {}
+
+    def log_state_change(self, from_state, to_state, condition):
+        log.info(f"[t={self.env.now:.2f}] TRANSITION {from_state} -> {to_state} (reason={condition})")
+
+    def enter_state(self, state_name):
+        self.state_entry_times[state_name] = self.env.now
+        log.info(f"[t={self.env.now:.2f}] ENTER state={state_name}")
+
+    def wait_for_event(self, event_name, duration):
+        log.info(f"[t={self.env.now:.2f}] WAIT {duration:.2f}s for {event_name}")
+        yield self.env.timeout(duration)
+
+    def _get_constraint_value(self, param_name, default_value):
+        return self.constraints.get(param_name, default_value)
+
+    def _parse_duration_from_condition(self, condition):
+        parts = condition.split()
+        for part in parts:
+            if part.endswith('s') and part[:-1].isdigit():
+                return int(part[:-1])
+        return None # Should not happen based on spec for this case
+
+    def red(self):
+        self.enter_state('Red')
+        # Transition to Green after Red_duration
+        red_duration = self._get_constraint_value('Red_duration', 30)
+        yield self.wait_for_event('Red duration elapsed', red_duration)
+        self.log_state_change('Red', 'Green', '30s elapsed')
+        self.current_state = 'Green'
+
+    def green(self):
+        self.enter_state('Green')
+        # Transition to Yellow after Green_duration
+        green_duration = self._get_constraint_value('Green_duration', 20)
+        yield self.wait_for_event('Green duration elapsed', green_duration)
+        self.log_state_change('Green', 'Yellow', '20s elapsed')
+        self.current_state = 'Yellow'
+
+    def yellow(self):
+        self.enter_state('Yellow')
+        # Transition to Red after Yellow_duration
+        yellow_duration = self._get_constraint_value('Yellow_duration', 3)
+        yield self.wait_for_event('Yellow duration elapsed', yellow_duration)
+        self.log_state_change('Yellow', 'Red', '3s elapsed')
+        self.current_state = 'Red'
+
+    def run(self):
+        while True:
+            if self.current_state == 'Red':
+                yield from self.red()
+            elif self.current_state == 'Green':
+                yield from self.green()
+            elif self.current_state == 'Yellow':
+                yield from self.yellow()
+            else:
+                # Should not happen with defined states
+                log.error(f"Unknown state: {self.current_state}")
+                break
+            # Add a small timeout to prevent tight loops if state changes immediately
+            if self.env.now > 0: # Avoid timeout(0) on first iteration if needed
+                 yield self.env.timeout(0.001)
+
+
+def run_simulation():
+    log.info("[SIM] Starting simulation")
+    env = simpy.Environment()
+    constraints = {
+        'Red_duration': 30,
+        'Green_duration': 20,
+        'Yellow_duration': 3
+    }
+    state_machine = StateMachine(env, constraints)
+
+    env.process(state_machine.run())
+
+    # This is a time-driven system, so we just run for a fixed duration
+    # The durations are dictated by the constraints and transitions.
+    simulation_duration = constraints['Red_duration'] + constraints['Green_duration'] + constraints['Yellow_duration'] * 2 # Run for at least two cycles to show transitions
+    env.run(until=simulation_duration)
+
+    log.info(f"[SIM] END simulation at t={env.now:.2f}")
+
+if __name__ == '__main__':
+    run_simulation()
+        ```
+        
+        Please execute this code and verify the results.
+        
+[DEBUG] Sessions dict keys: ['InMemoryRunner']
+[DEBUG] Session value type for key 'InMemoryRunner': <class 'dict'>
+[DEBUG] Nested keys: ['debug_user_id']
+[DEBUG] Nested value type for key 'debug_user_id': <class 'dict'>
+[DEBUG] Triple nested keys: ['debug_session_id']
+[DEBUG] Found session from triple nested dict: debug_session_id
+[DEBUG] Session events count: 4
+[DEBUG] Session events count: 4
+[DEBUG] Response length: 3
+[DEBUG] Event 0 type: <class 'google.adk.events.event.Event'>
+[DEBUG] Event content parts: 1
+[DEBUG] Part type: <class 'google.genai.types.Part'>
+[DEBUG] Part text (snippet): None
+[DEBUG] Part function_response: Yes
+[DEBUG] Event 1 type: <class 'google.adk.events.event.Event'>
+[DEBUG] Event content parts: 1
+[DEBUG] Part type: <class 'google.genai.types.Part'>
+[DEBUG] Part text (snippet): None
+[DEBUG] Part function_response: Yes
+[DEBUG] Event 2 type: <class 'google.adk.events.event.Event'>
+[DEBUG] Event content parts: 0
+
+ ### Created new session: debug_session_id
+
+User > Specification:
+{'states': [{'name': 'Red'}, {'name': 'Green'}, {'name': 'Yellow'}], 'transitions': [{'from': 'Red', 'to': 'Green', 'condition': '30s elapsed'}, {'from': 'Green', 'to': 'Yellow', 'condition': '20s elapsed'}, {'from': 'Yellow', 'to': 'Red', 'condition': '3s elapsed'}], 'constraints': [{'param': 'Red_duration', 'value': 30}, {'param': 'Green_duration', 'value': 20}, {'param': 'Yellow_duration', 'value': 3}]}
+
+FEEDBACK FROM PREVIOUS ATTEMPT (FIX THESE ERRORS):
+Verification Failed: Simulation Execution Errors
+Logs/Errors:
+
+[SYSTEM] Simulation Execution Errors:
+{'content': [{'type': 'text', 'text': '\nERRORS:\nTraceback (most recent call last):\n  File "C:\\Users\\24760\\AppData\\Roaming\\Python\\Python313\\site-packages\\simpy\\events.py", line 431, in _resume\n    if event.callbacks is not None:\n       ^^^^^^^^^^^^^^^\nAttributeError: \'generator\' object has no attribute \'callbacks\'\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File "E:\\VeriSpec\\verispec-lite\\servers\\simulation_server.py", line 41, in execute_simulation_code\n    exec(code_str, exec_globals)\n    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^\n  File "<string>", line 102, in <module>\n  File "<string>", line 97, in run_simulation\n  File "C:\\Users\\24760\\AppData\\Roaming\\Python\\Python313\\site-packages\\simpy\\core.py", line 246, in run\n    self.step()\n    ~~~~~~~~~^^\n  File "C:\\Users\\24760\\AppData\\Roaming\\Python\\Python313\\site-packages\\simpy\\core.py", line 196, in step\n    callback(event)\n    ~~~~~~~~^^^^^^^\n  File "C:\\Users\\24760\\AppData\\Roaming\\Python\\Python313\\site-packages\\simpy\\events.py", line 443, in _resume\n    descr = _describe_frame(self._generator.gi_frame)\n  File "C:\\Users\\24760\\AppData\\Roaming\\Python\\Python313\\site-packages\\simpy\\events.py", line 645, in _describe_frame\n    with open(filename) as f:\n         ~~~~^^^^^^^^^^\nOSError: [Errno 22] Invalid argument: \'<string>\'\n'}], 'structuredContent': {'result': '\nERRORS:\nTraceback (most recent call last):\n  File "C:\\Users\\24760\\AppData\\Roaming\\Python\\Python313\\site-packages\\simpy\\events.py", line 431, in _resume\n    if event.callbacks is not None:\n       ^^^^^^^^^^^^^^^\nAttributeError: \'generator\' object has no attribute \'callbacks\'\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File "E:\\VeriSpec\\verispec-lite\\servers\\simulation_server.py", line 41, in execute_simulation_code\n    exec(code_str, exec_globals)\n    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^\n  File "<string>", line 102, in <module>\n  File "<string>", line 97, in run_simulation\n  File "C:\\Users\\24760\\AppData\\Roaming\\Python\\Python313\\site-packages\\simpy\\core.py", line 246, in run\n    self.step()\n    ~~~~~~~~~^^\n  File "C:\\Users\\24760\\AppData\\Roaming\\Python\\Python313\\site-packages\\simpy\\core.py", line 196, in step\n    callback(event)\n    ~~~~~~~~^^^^^^^\n  File "C:\\Users\\24760\\AppData\\Roaming\\Python\\Python313\\site-packages\\simpy\\events.py", line 443, in _resume\n    descr = _describe_frame(self._generator.gi_frame)\n  File "C:\\Users\\24760\\AppData\\Roaming\\Python\\Python313\\site-packages\\simpy\\events.py", line 645, in _describe_frame\n    with open(filename) as f:\n         ~~~~^^^^^^^^^^\nOSError: [Errno 22] Invalid argument: \'<string>\'\n'}, 'isError': False}
+
+architect_agent > ```python
+import simpy
+
+class StateMachine:
+    def __init__(self, env):
+        self.env = env
+        self.current_state = 'Red'  # Initial state
+        self.transitions = {
+            'Red': {'Green': '30s elapsed'},
+            'Green': {'Yellow': '20s elapsed'},
+            'Yellow': {'Red': '3s elapsed'}
+        }
+        self.constraints = {
+            'Red_duration': 30,
+            'Green_duration': 20,
+            'Yellow_duration': 3
+        }
+        self.state_log = []
+
+    def log_transition(self, from_state, to_state, condition):
+        log_entry = f"[SIM][t={self.env.now:.2f}] TRANSITION {from_state} -> {to_state} (reason={condition})"
+        print(log_entry)
+        self.state_log.append(log_entry)
+
+    def log_state_entry(self, state_name):
+        log_entry = f"[SIM][t={self.env.now:.2f}] ENTER state={state_name}"
+        print(log_entry)
+        self.state_log.append(log_entry)
+
+    def log_wait(self, duration, event_name):
+        log_entry = f"[SIM][t={self.env.now:.2f}] WAIT {duration}s for {event_name}"
+        print(log_entry)
+        self.state_log.append(log_entry)
+
+    def red(self):
+        self.log_state_entry('Red')
+        yield self.env.timeout(self.constraints['Red_duration'])
+        next_state = 'Green'
+        condition = '30s elapsed'
+        self.log_transition(self.current_state, next_state, condition)
+        self.current_state = next_state
+
+    def green(self):
+        self.log_state_entry('Green')
+        yield self.env.timeout(self.constraints['Green_duration'])
+        next_state = 'Yellow'
+        condition = '20s elapsed'
+        self.log_transition(self.current_state, next_state, condition)
+        self.current_state = next_state
+
+    def yellow(self):
+        self.log_state_entry('Yellow')
+        yield self.env.timeout(self.constraints['Yellow_duration'])
+        next_state = 'Red'
+        condition = '3s elapsed'
+        self.log_transition(self.current_state, next_state, condition)
+        self.current_state = next_state
+
+    def run(self):
+        while True:
+            if self.current_state == 'Red':
+                yield from self.red()
+            elif self.current_state == 'Green':
+                yield from self.green()
+            elif self.current_state == 'Yellow':
+                yield from self.yellow()
+            else:
+                # Should not happen in this specific state machine
+                yield self.env.timeout(0.001) # Prevent infinite loop
+
+
+def run_simulation():
+    print("[SIM] Starting simulation")
+    env = simpy.Environment()
+    state_machine = StateMachine(env)
+
+    env.process(state_machine.run())
+
+    # This is a time-driven system, so we just run for a fixed duration
+    # The durations are dictated by the constraints and transitions.
+    simulation_duration = state_machine.constraints['Red_duration'] + \
+                          state_machine.constraints['Green_duration'] + \
+                          state_machine.constraints['Yellow_duration']
+    
+    env.run(until=simulation_duration * 2) # Run for a couple of cycles to show transitions
+
+    print(f"[SIM] END state={state_machine.current_state}")
+
+if __name__ == "__main__":
+    run_simulation()
+```
+
+ ### Created new session: debug_session_id
+
+User > 
+        Specification:
+        {
+  "states": [
+    {
+      "name": "Red"
+    },
+    {
+      "name": "Green"
+    },
+    {
+      "name": "Yellow"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "Red",
+      "to": "Green",
+      "condition": "30s elapsed"
+    },
+    {
+      "from": "Green",
+      "to": "Yellow",
+      "condition": "20s elapsed"
+    },
+    {
+      "from": "Yellow",
+      "to": "Red",
+      "condition": "3s elapsed"
+    }
+  ],
+  "constraints": [
+    {
+      "param": "Red_duration",
+      "value": 30
+    },
+    {
+      "param": "Green_duration",
+      "value": 20
+    },
+    {
+      "param": "Yellow_duration",
+      "value": 3
+    }
+  ]
+}
+        
+        Simulation Code:
+        ```python
+        import simpy
+
+class StateMachine:
+    def __init__(self, env):
+        self.env = env
+        self.current_state = 'Red'  # Initial state
+        self.transitions = {
+            'Red': {'Green': '30s elapsed'},
+            'Green': {'Yellow': '20s elapsed'},
+            'Yellow': {'Red': '3s elapsed'}
+        }
+        self.constraints = {
+            'Red_duration': 30,
+            'Green_duration': 20,
+            'Yellow_duration': 3
+        }
+        self.state_log = []
+
+    def log_transition(self, from_state, to_state, condition):
+        log_entry = f"[SIM][t={self.env.now:.2f}] TRANSITION {from_state} -> {to_state} (reason={condition})"
+        print(log_entry)
+        self.state_log.append(log_entry)
+
+    def log_state_entry(self, state_name):
+        log_entry = f"[SIM][t={self.env.now:.2f}] ENTER state={state_name}"
+        print(log_entry)
+        self.state_log.append(log_entry)
+
+    def log_wait(self, duration, event_name):
+        log_entry = f"[SIM][t={self.env.now:.2f}] WAIT {duration}s for {event_name}"
+        print(log_entry)
+        self.state_log.append(log_entry)
+
+    def red(self):
+        self.log_state_entry('Red')
+        yield self.env.timeout(self.constraints['Red_duration'])
+        next_state = 'Green'
+        condition = '30s elapsed'
+        self.log_transition(self.current_state, next_state, condition)
+        self.current_state = next_state
+
+    def green(self):
+        self.log_state_entry('Green')
+        yield self.env.timeout(self.constraints['Green_duration'])
+        next_state = 'Yellow'
+        condition = '20s elapsed'
+        self.log_transition(self.current_state, next_state, condition)
+        self.current_state = next_state
+
+    def yellow(self):
+        self.log_state_entry('Yellow')
+        yield self.env.timeout(self.constraints['Yellow_duration'])
+        next_state = 'Red'
+        condition = '3s elapsed'
+        self.log_transition(self.current_state, next_state, condition)
+        self.current_state = next_state
+
+    def run(self):
+        while True:
+            if self.current_state == 'Red':
+                yield from self.red()
+            elif self.current_state == 'Green':
+                yield from self.green()
+            elif self.current_state == 'Yellow':
+                yield from self.yellow()
+            else:
+                # Should not happen in this specific state machine
+                yield self.env.timeout(0.001) # Prevent infinite loop
+
+
+def run_simulation():
+    print("[SIM] Starting simulation")
+    env = simpy.Environment()
+    state_machine = StateMachine(env)
+
+    env.process(state_machine.run())
+
+    # This is a time-driven system, so we just run for a fixed duration
+    # The durations are dictated by the constraints and transitions.
+    simulation_duration = state_machine.constraints['Red_duration'] + \
+                          state_machine.constraints['Green_duration'] + \
+                          state_machine.constraints['Yellow_duration']
+    
+    env.run(until=simulation_duration * 2) # Run for a couple of cycles to show transitions
+
+    print(f"[SIM] END state={state_machine.current_state}")
+
+if __name__ == "__main__":
+    run_simulation()
+        ```
+        
+        Please execute this code and verify the results.
+        
+verifier_agent > I will first execute the provided simulation code using the `execute_simulation_code` tool.
+Then, I will analyze the logs and errors returned from the execution to verify if they match the specification.
+
+Specifically, I will check for:
+- Any Python exceptions.
+- Correct simulation start and end logs.
+- Correct log format for transitions and state entries.
+- Transitions occurring at the times specified in the `transitions` section of the specification (e.g., Red to Green after 30s, Green to Yellow after 20s, Yellow to Red after 3s).
+- The total duration of each state matching the `constraints` in the specification.
+
+Based on this verification, I will determine if the simulation passes or fails.
+[DEBUG] Sessions dict keys: ['InMemoryRunner']
+[DEBUG] Session value type for key 'InMemoryRunner': <class 'dict'>
+[DEBUG] Nested keys: ['debug_user_id']
+[DEBUG] Nested value type for key 'debug_user_id': <class 'dict'>
+[DEBUG] Triple nested keys: ['debug_session_id']
+[DEBUG] Found session from triple nested dict: debug_session_id
+[DEBUG] Session events count: 4
+[DEBUG] Session events count: 4
+[DEBUG] Response length: 3
+[DEBUG] Event 0 type: <class 'google.adk.events.event.Event'>
+[DEBUG] Event content parts: 2
+[DEBUG] Part type: <class 'google.genai.types.Part'>
+[DEBUG] Part text (snippet): I will first execute the provided simulation code 
+[DEBUG] Part function_response: Yes
+[DEBUG] Part type: <class 'google.genai.types.Part'>
+[DEBUG] Part text (snippet): None
+[DEBUG] Part function_response: Yes
+[DEBUG] Event 1 type: <class 'google.adk.events.event.Event'>
+[DEBUG] Event content parts: 1
+[DEBUG] Part type: <class 'google.genai.types.Part'>
+[DEBUG] Part text (snippet): None
+[DEBUG] Part function_response: Yes
+[DEBUG] Event 2 type: <class 'google.adk.events.event.Event'>
+[DEBUG] Event content parts: 0
+Error parsing JSON from Verifier Agent: Expecting value: line 1 column 1 (char 0)
+Raw response: I will first execute the provided simulation code using the `execute_simulation_code` tool.
+Then, I will analyze the logs and errors returned from the execution to verify if they match the specification.
+
+Specifically, I will check for:
+- Any Python exceptions.
+- Correct simulation start and end logs.
+- Correct log format for transitions and state entries.
+- Transitions occurring at the times specified in the `transitions` section of the specification (e.g., Red to Green after 30s, Green to Yellow after 20s, Yellow to Red after 3s).
+- The total duration of each state matching the `constraints` in the specification.
+
+Based on this verification, I will determine if the simulation passes or fails.
+
+ ### Created new session: debug_session_id
+
+User > Specification:
+{'states': [{'name': 'Red'}, {'name': 'Green'}, {'name': 'Yellow'}], 'transitions': [{'from': 'Red', 'to': 'Green', 'condition': '30s elapsed'}, {'from': 'Green', 'to': 'Yellow', 'condition': '20s elapsed'}, {'from': 'Yellow', 'to': 'Red', 'condition': '3s elapsed'}], 'constraints': [{'param': 'Red_duration', 'value': 30}, {'param': 'Green_duration', 'value': 20}, {'param': 'Yellow_duration', 'value': 3}]}
+
+FEEDBACK FROM PREVIOUS ATTEMPT (FIX THESE ERRORS):
+Verification Failed: JSON parsing error: Expecting value: line 1 column 1 (char 0)
+Logs/Errors:
+[SIM] Starting simulation
+[SIM][t=0.00] ENTER state=Red
+[SIM][t=30.00] TRANSITION Red -> Green (reason=30s elapsed)
+[SIM][t=30.00] ENTER state=Green
+[SIM][t=50.00] TRANSITION Green -> Yellow (reason=20s elapsed)
+[SIM][t=50.00] ENTER state=Yellow
+[SIM][t=53.00] TRANSITION Yellow -> Red (reason=3s elapsed)
+[SIM][t=53.00] ENTER state=Red
+[SIM][t=83.00] TRANSITION Red -> Green (reason=30s elapsed)
+[SIM][t=83.00] ENTER state=Green
+[SIM][t=103.00] TRANSITION Green -> Yellow (reason=20s elapsed)
+[SIM][t=103.00] ENTER state=Yellow
+[SIM] END state=Yellow
+
+architect_agent > ```python
+import simpy
 
 class StateMachine:
     def __init__(self, env):
@@ -38,63 +640,64 @@ class StateMachine:
         self.constraints = {
             'Red_duration': 30,
             'Green_duration': 20,
-            'Yellow_duration': 3,
+            'Yellow_duration': 3
         }
-        # Provide default values if constraints are missing or None
-        self.red_duration = self.constraints.get('Red_duration', 30)
-        self.green_duration = self.constraints.get('Green_duration', 20)
-        self.yellow_duration = self.constraints.get('Yellow_duration', 3)
+        self.state_log = []
 
-        print("[SIM] Starting simulation")
-        print(f"[SIM][t={self.env.now}] ENTER state={self.current_state}")
+    def log_state_change(self, event_type, **kwargs):
+        log_entry = ""
+        if event_type == "ENTER":
+            log_entry = f"[SIM][t={self.env.now:.2f}] ENTER state={kwargs['state_name']}"
+        elif event_type == "WAIT":
+            log_entry = f"[SIM][t={self.env.now:.2f}] WAIT {kwargs['duration']}s for {kwargs['event_name']}"
+        elif event_type == "TRANSITION":
+            log_entry = f"[SIM][t={self.env.now:.2f}] TRANSITION {kwargs['from_state']} -> {kwargs['to_state']} (reason={kwargs['condition']})"
+        elif event_type == "END":
+            log_entry = f"[SIM][t={self.env.now:.2f}] END state={kwargs['final_state']}"
+        print(log_entry)
+        self.state_log.append(log_entry)
+
+    def set_state(self, new_state, reason=""):
+        if self.current_state != new_state:
+            self.log_state_change(event_type="TRANSITION", from_state=self.current_state, to_state=new_state, condition=reason)
+            self.current_state = new_state
+            self.log_state_change(event_type="ENTER", state_name=self.current_state)
+
+    def red(self):
+        self.log_state_change(event_type="ENTER", state_name='Red')
+        yield self.env.timeout(self.constraints['Red_duration'])
+        self.set_state('Green', reason='30s elapsed')
+
+    def green(self):
+        self.log_state_change(event_type="ENTER", state_name='Green')
+        yield self.env.timeout(self.constraints['Green_duration'])
+        self.set_state('Yellow', reason='20s elapsed')
+
+    def yellow(self):
+        self.log_state_change(event_type="ENTER", state_name='Yellow')
+        yield self.env.timeout(self.constraints['Yellow_duration'])
+        self.set_state('Red', reason='3s elapsed')
 
     def run(self):
         while True:
             if self.current_state == 'Red':
-                yield from self.red_state()
+                yield from self.red()
             elif self.current_state == 'Green':
-                yield from self.green_state()
+                yield from self.green()
             elif self.current_state == 'Yellow':
-                yield from self.yellow_state()
+                yield from self.yellow()
             else:
-                # Should not happen in this traffic light example
-                yield env.timeout(1) 
-
-    def red_state(self):
-        print(f"[SIM][t={self.env.now}] WAIT {self.red_duration}s for Red_duration")
-        yield self.env.timeout(self.red_duration)
-        self.transition('Red', 'Green', '30s elapsed')
-
-    def green_state(self):
-        print(f"[SIM][t={self.env.now}] WAIT {self.green_duration}s for Green_duration")
-        yield self.env.timeout(self.green_duration)
-        self.transition('Green', 'Yellow', '20s elapsed')
-
-    def yellow_state(self):
-        print(f"[SIM][t={self.env.now}] WAIT {self.yellow_duration}s for Yellow_duration")
-        yield self.env.timeout(self.yellow_duration)
-        self.transition('Yellow', 'Red', '3s elapsed')
-
-    def transition(self, from_state, to_state, reason):
-        if self.current_state == from_state:
-            print(f"[SIM][t={self.env.now}] TRANSITION {from_state} -> {to_state} (reason={reason})")
-            self.current_state = to_state
-            print(f"[SIM][t={self.env.now}] ENTER state={self.current_state}")
-        else:
-            # This case should ideally not be reached in a simple state machine
-            # unless there's a race condition or incorrect logic.
-            # For robustness, we can log it.
-            print(f"[SIM][t={self.env.now}] WARNING: Attempted transition from {from_state} to {to_state} but current state is {self.current_state}")
-            # Decide how to handle: either ignore or raise an error. For now, ignore.
-
+                # Should not happen in this finite state machine
+                break
 
 def run_simulation():
     env = simpy.Environment()
     state_machine = StateMachine(env)
+    
+    print("[SIM] Starting simulation")
     env.process(state_machine.run())
-    env.run(until=60) # Run for a total of 60 seconds
-    print(f"[SIM][t={env.now}] END state={state_machine.current_state}")
-
+    env.run(until=120) # Running for a fixed duration to cover multiple cycles
+    print(f"[SIM] END simulation")
 
 if __name__ == "__main__":
     run_simulation()
@@ -160,63 +763,64 @@ class StateMachine:
         self.constraints = {
             'Red_duration': 30,
             'Green_duration': 20,
-            'Yellow_duration': 3,
+            'Yellow_duration': 3
         }
-        # Provide default values if constraints are missing or None
-        self.red_duration = self.constraints.get('Red_duration', 30)
-        self.green_duration = self.constraints.get('Green_duration', 20)
-        self.yellow_duration = self.constraints.get('Yellow_duration', 3)
+        self.state_log = []
 
-        print("[SIM] Starting simulation")
-        print(f"[SIM][t={self.env.now}] ENTER state={self.current_state}")
+    def log_state_change(self, event_type, **kwargs):
+        log_entry = ""
+        if event_type == "ENTER":
+            log_entry = f"[SIM][t={self.env.now:.2f}] ENTER state={kwargs['state_name']}"
+        elif event_type == "WAIT":
+            log_entry = f"[SIM][t={self.env.now:.2f}] WAIT {kwargs['duration']}s for {kwargs['event_name']}"
+        elif event_type == "TRANSITION":
+            log_entry = f"[SIM][t={self.env.now:.2f}] TRANSITION {kwargs['from_state']} -> {kwargs['to_state']} (reason={kwargs['condition']})"
+        elif event_type == "END":
+            log_entry = f"[SIM][t={self.env.now:.2f}] END state={kwargs['final_state']}"
+        print(log_entry)
+        self.state_log.append(log_entry)
+
+    def set_state(self, new_state, reason=""):
+        if self.current_state != new_state:
+            self.log_state_change(event_type="TRANSITION", from_state=self.current_state, to_state=new_state, condition=reason)
+            self.current_state = new_state
+            self.log_state_change(event_type="ENTER", state_name=self.current_state)
+
+    def red(self):
+        self.log_state_change(event_type="ENTER", state_name='Red')
+        yield self.env.timeout(self.constraints['Red_duration'])
+        self.set_state('Green', reason='30s elapsed')
+
+    def green(self):
+        self.log_state_change(event_type="ENTER", state_name='Green')
+        yield self.env.timeout(self.constraints['Green_duration'])
+        self.set_state('Yellow', reason='20s elapsed')
+
+    def yellow(self):
+        self.log_state_change(event_type="ENTER", state_name='Yellow')
+        yield self.env.timeout(self.constraints['Yellow_duration'])
+        self.set_state('Red', reason='3s elapsed')
 
     def run(self):
         while True:
             if self.current_state == 'Red':
-                yield from self.red_state()
+                yield from self.red()
             elif self.current_state == 'Green':
-                yield from self.green_state()
+                yield from self.green()
             elif self.current_state == 'Yellow':
-                yield from self.yellow_state()
+                yield from self.yellow()
             else:
-                # Should not happen in this traffic light example
-                yield env.timeout(1) 
-
-    def red_state(self):
-        print(f"[SIM][t={self.env.now}] WAIT {self.red_duration}s for Red_duration")
-        yield self.env.timeout(self.red_duration)
-        self.transition('Red', 'Green', '30s elapsed')
-
-    def green_state(self):
-        print(f"[SIM][t={self.env.now}] WAIT {self.green_duration}s for Green_duration")
-        yield self.env.timeout(self.green_duration)
-        self.transition('Green', 'Yellow', '20s elapsed')
-
-    def yellow_state(self):
-        print(f"[SIM][t={self.env.now}] WAIT {self.yellow_duration}s for Yellow_duration")
-        yield self.env.timeout(self.yellow_duration)
-        self.transition('Yellow', 'Red', '3s elapsed')
-
-    def transition(self, from_state, to_state, reason):
-        if self.current_state == from_state:
-            print(f"[SIM][t={self.env.now}] TRANSITION {from_state} -> {to_state} (reason={reason})")
-            self.current_state = to_state
-            print(f"[SIM][t={self.env.now}] ENTER state={self.current_state}")
-        else:
-            # This case should ideally not be reached in a simple state machine
-            # unless there's a race condition or incorrect logic.
-            # For robustness, we can log it.
-            print(f"[SIM][t={self.env.now}] WARNING: Attempted transition from {from_state} to {to_state} but current state is {self.current_state}")
-            # Decide how to handle: either ignore or raise an error. For now, ignore.
-
+                # Should not happen in this finite state machine
+                break
 
 def run_simulation():
     env = simpy.Environment()
     state_machine = StateMachine(env)
+    
+    print("[SIM] Starting simulation")
     env.process(state_machine.run())
-    env.run(until=60) # Run for a total of 60 seconds
-    print(f"[SIM][t={env.now}] END state={state_machine.current_state}")
-
+    env.run(until=120) # Running for a fixed duration to cover multiple cycles
+    print(f"[SIM] END simulation")
 
 if __name__ == "__main__":
     run_simulation()
@@ -224,13 +828,8 @@ if __name__ == "__main__":
         
         Please execute this code and verify the results.
         
-verifier_agent > ```json
-{
-    "status": "PASS",
-    "reason": "The simulation executed successfully and the logs match the expected transitions and durations defined in the specification.",
-    "retry": false
-}
-```
+verifier_agent > {"status": "PASS", "reason": "Simulation logs match the specification.", "retry": false}
+
 [DEBUG] Sessions dict keys: ['InMemoryRunner']
 [DEBUG] Session value type for key 'InMemoryRunner': <class 'dict'>
 [DEBUG] Nested keys: ['debug_user_id']
@@ -253,8 +852,5 @@ verifier_agent > ```json
 [DEBUG] Event 2 type: <class 'google.adk.events.event.Event'>
 [DEBUG] Event content parts: 1
 [DEBUG] Part type: <class 'google.genai.types.Part'>
-[DEBUG] Part text (snippet): ```json
-{
-    "status": "PASS",
-    "reason": "The
+[DEBUG] Part text (snippet): {"status": "PASS", "reason": "Simulation logs matc
 [DEBUG] Part function_response: Yes

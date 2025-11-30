@@ -1,6 +1,6 @@
 # Spec2Sim-Agent Performance Report
 
-**Generated:** 2025-11-30 14:28:40
+**Generated:** 2025-11-30 15:11:59
 
 ## Summary
 
@@ -8,16 +8,16 @@
 |--------|-------|
 | **Total Tests** | 3 |
 | **Success Rate** | 3/3 (100.0%) |
-| **Average Time** | 43.43s |
-| **Total Time** | 130.28s |
+| **Average Time** | 30.86s |
+| **Total Time** | 92.59s |
 
 ## Detailed Results
 
 | Demo | Time | Status | Code Lines | Log Lines |
 |------|------|--------|------------|-----------|
-| traffic_light | 13.61s | ✅ PASS | 69 | 14 |
-| bms_precharge | 90.42s | ✅ PASS | 133 | 39 |
-| elevator | 26.25s | ✅ PASS | 165 | 47 |
+| traffic_light | 38.61s | PASS | 70 | 16 |
+| bms_precharge | 24.02s | PASS | 117 | 29 |
+| elevator | 29.96s | PASS | 171 | 62 |
 
 ## Value Proposition
 
