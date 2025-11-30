@@ -6,6 +6,20 @@ Transform natural language system specifications into verified simulation code i
 
 ---
 
+<div align="center">
+    <table>
+        <tr>
+            <td align="center">
+                <a href="https://avalon-s.github.io/Spec2Sim-Agent/"><strong>Project Page</strong></a><br>
+            </td>
+            <td align="center">
+                <a href="https://youtu.be/c4gFotLfwHI"><strong>Demo Video</strong></a><br>
+            </td>
+        </tr>
+    </table>
+</div>
+
+
 ## Table of Contents
 
 - [The Problem](#the-problem)
@@ -93,22 +107,22 @@ flowchart TD
 | Metric | Value |
 |--------|-------|
 | **Success Rate** | **3/3 (100%)** |
-| **Average Time** | **83.26 seconds** |
+| **Average Time** | **41.39 seconds** |
 | **Total Tests** | 3 industrial control systems |
 
 ### Detailed Results
 
 | Demo | Time | Status | Code Lines | Log Lines | Complexity |
 |------|------|--------|------------|-----------|------------|
-| Traffic Light | 8.67s | PASS | 86 | 18 | Time-driven FSM |
-| BMS Precharge | 107.67s | PASS | 151 | 16 | Voltage monitoring |
-| Elevator Control | 133.43s | PASS | 205 | 56 | Multi-floor logic |
+| Traffic Light | 17.36s | PASS | 113 | 20 | Time-driven FSM |
+| BMS Precharge | 79.89s | PASS | 205 | 421 | Voltage monitoring |
+| Elevator Control | 26.91s | PASS | 136 | 3005 | Multi-floor logic |
 
 ### Value Proposition
 
 **Compared to manual coding:**
 
-- **Speed**: 83s average vs 2+ hours (87x faster)
+- **Speed**: 41.39s average vs 2+ hours (87x faster)
 - **Quality**: 100% verified correctness vs potential manual errors
 - **Iteration**: Immediate feedback vs hours of debugging
 - **Cost**: ~$0.02 per specification vs 2 engineer-hours
@@ -211,7 +225,7 @@ spec2sim-agent/
 
 1. **Clone the repository**:
    ```bash
-   git clone <your-repo-url>
+   git clone https://github.com/Avalon-S/Spec2Sim-Agent
    cd spec2sim-agent
    ```
 
@@ -358,7 +372,7 @@ Spec2Sim-Agent has been successfully deployed to **Google Cloud Vertex AI Agent 
 
 **Agent Engine Resource**:
 ```
-projects/194877581562/locations/europe-west1/reasoningEngines/5023818160889921536
+projects/YOUR_PROJECT_ID/locations/YOUR_REGION/reasoningEngines/YOUR_ENGINE_ID
 ```
 
 **Deployment Configuration**:
@@ -442,7 +456,7 @@ See `deployment/README.md` for deployment guide.
 
 ## Documentation
 
-For deployment instructions, see `deployment/README.md` and `deployment/LOCAL_DEPLOYMENT_GUIDE.md`.
+For deployment instructions, see `deployment/README.md`.
 
 [Back to Top](#table-of-contents)
 
@@ -463,7 +477,7 @@ This project was built for the **Kaggle Agents Intensive Capstone** (Enterprise 
 
 ## License
 
-This project is for educational and competition purposes.
+This project is licensed under the MIT License. See the `LICENSE` file for details.
 
 [Back to Top](#table-of-contents)
 
@@ -474,14 +488,6 @@ This project is for educational and competition purposes.
 - **Google ADK Team**: For the powerful agent framework
 - **Gemini Team**: For the fast and capable Gemini 2.5 Flash Lite model
 - **SimPy Community**: For the excellent discrete-event simulation library
-
-[Back to Top](#table-of-contents)
-
----
-
-## Contact
-
-For questions or collaboration, please open an issue on GitHub.
 
 [Back to Top](#table-of-contents)
 

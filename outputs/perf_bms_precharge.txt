@@ -1,0 +1,1505 @@
+
+ ### Created new session: debug_session_id
+
+User > Idle -> Enable -> Precharge -> Run or Error.
+Precharge lasts 2000ms. If voltage < threshold after timeout -> Error.
+
+analyst_agent > ```json
+{
+  "states": [
+    {"name": "Idle"},
+    {"name": "Enable"},
+    {"name": "Precharge"},
+    {"name": "Run"},
+    {"name": "Error"}
+  ],
+  "transitions": [
+    {"from": "Idle", "to": "Enable", "condition": "system_enabled"},
+    {"from": "Enable", "to": "Precharge", "condition": "enable_signal_active"},
+    {"from": "Precharge", "to": "Run", "condition": "precharge_complete"},
+    {"from": "Precharge", "to": "Error", "condition": "precharge_timeout AND voltage < threshold"}
+  ],
+  "constraints": [
+    {"param": "Precharge_duration", "value": 2000}
+  ]
+}
+```
+
+ ### Created new session: debug_session_id
+
+User > Specification:
+{'states': [{'name': 'Idle'}, {'name': 'Enable'}, {'name': 'Precharge'}, {'name': 'Run'}, {'name': 'Error'}], 'transitions': [{'from': 'Idle', 'to': 'Enable', 'condition': 'system_enabled'}, {'from': 'Enable', 'to': 'Precharge', 'condition': 'enable_signal_active'}, {'from': 'Precharge', 'to': 'Run', 'condition': 'precharge_complete'}, {'from': 'Precharge', 'to': 'Error', 'condition': 'precharge_timeout AND voltage < threshold'}], 'constraints': [{'param': 'Precharge_duration', 'value': 2000}]}
+architect_agent > ```python
+import simpy
+import random
+
+class StateMachine:
+    def __init__(self, env):
+        self.env = env
+        self.current_state = 'Idle'
+        self.constraints = {
+            'Precharge_duration': 2.0,  # Defaulting to 2.0 seconds if not provided or None
+        }
+        self.voltage = 0  # Example parameter for 'voltage < threshold'
+        self.threshold = 5.0 # Example threshold
+
+        # Flags for simulating external inputs/conditions
+        self.system_enabled_flag = False
+        self.enable_signal_active_flag = False
+
+        # Internal state variables
+        self.precharge_start_time = None
+
+        print("[SIM] Starting simulation")
+
+    def log_state_entry(self, state_name):
+        print(f"[SIM][t={self.env.now:.2f}] ENTER state={state_name}")
+
+    def log_wait(self, duration, event_name):
+        print(f"[SIM][t={self.env.now:.2f}] WAIT {duration:.2f}s for {event_name}")
+
+    def log_transition(self, from_state, to_state, reason):
+        print(f"[SIM][t={self.env.now:.2f}] TRANSITION {from_state} -> {to_state} (reason={reason})")
+
+    def set_system_enabled(self, value):
+        self.system_enabled_flag = value
+
+    def set_enable_signal_active(self, value):
+        self.enable_signal_active_flag = value
+
+    def idle(self):
+        self.log_state_entry('Idle')
+        # In Idle state, we wait for the system to be enabled
+        while not self.system_enabled_flag:
+            self.log_wait(1.0, 'system_enabled')
+            yield self.env.timeout(1.0) # Poll every second if system is enabled
+        self.log_transition('Idle', 'Enable', 'system_enabled')
+        self.current_state = 'Enable'
+
+    def enable(self):
+        self.log_state_entry('Enable')
+        # In Enable state, we wait for the enable signal
+        while not self.enable_signal_active_flag:
+            self.log_wait(0.5, 'enable_signal_active')
+            yield self.env.timeout(0.5) # Poll every half second
+        self.log_transition('Enable', 'Precharge', 'enable_signal_active')
+        self.current_state = 'Precharge'
+
+    def precharge(self):
+        self.log_state_entry('Precharge')
+        self.precharge_start_time = self.env.now
+        precharge_duration = self.constraints.get('Precharge_duration', 2.0) # Use constraint or default
+
+        # Simulate voltage rising during precharge
+        voltage_rise_rate = self.threshold / precharge_duration
+        voltage_rising_process = self.env.process(self.simulate_voltage_rise(voltage_rise_rate))
+
+        # Wait for precharge completion or timeout
+        timeout_event = self.env.timeout(precharge_duration)
+        precharge_complete_event = self.env.event() # Will be set when voltage reaches threshold
+
+        # Mocking precharge complete event for simulation purposes if voltage reaches threshold
+        # In a real system, this would be an external signal or sensor reading.
+        self.env.process(self.monitor_voltage_for_precharge_completion(precharge_complete_event))
+
+        # Wait for either timeout or precharge completion
+        chosen_event = yield simpy.AllOf(
+            self.env,
+            [timeout_event, precharge_complete_event]
+        )
+
+        if timeout_event in chosen_event and not precharge_complete_event.processed:
+            # Precharge timed out
+            self.log_transition('Precharge', 'Error', 'precharge_timeout AND voltage < threshold')
+            self.current_state = 'Error'
+            self.env.remove_process(voltage_rising_process)
+        elif precharge_complete_event.processed:
+            # Precharge complete
+            self.log_transition('Precharge', 'Run', 'precharge_complete')
+            self.current_state = 'Run'
+            self.env.remove_process(voltage_rising_process)
+        else:
+            # This case should ideally not happen with AllOf, but as a fallback
+            self.log_transition('Precharge', 'Error', 'unexpected_condition')
+            self.current_state = 'Error'
+            self.env.remove_process(voltage_rising_process)
+
+
+    def simulate_voltage_rise(self, rate):
+        while True:
+            time_elapsed = self.env.now - self.precharge_start_time
+            self.voltage = min(self.threshold, rate * time_elapsed)
+            # print(f"[SIM][t={self.env.now:.2f}] Voltage: {self.voltage:.2f}") # Optional: for debugging
+            yield self.env.timeout(0.1) # Update voltage every 0.1 seconds
+
+    def monitor_voltage_for_precharge_completion(self, completion_event):
+        while self.voltage < self.threshold:
+            yield self.env.timeout(0.1)
+        if not completion_event.triggered:
+            completion_event.succeed()
+
+
+    def run_state(self):
+        self.log_state_entry('Run')
+        # In Run state, we just wait and simulate running for a bit
+        self.log_wait(5.0, 'running_process')
+        yield self.env.timeout(5.0)
+        # Transition back to Idle for this example, could be any other state or end
+        self.log_transition('Run', 'Idle', 'run_cycle_complete')
+        self.current_state = 'Idle'
+
+    def error(self):
+        self.log_state_entry('Error')
+        # In Error state, we wait for an external reset or signal
+        self.log_wait(10.0, 'error_state_recovery')
+        yield self.env.timeout(10.0)
+        # Transition back to Idle for this example
+        self.log_transition('Error', 'Idle', 'system_reset')
+        self.current_state = 'Idle'
+
+
+    def run(self):
+        while True:
+            if self.current_state == 'Idle':
+                yield from self.idle()
+            elif self.current_state == 'Enable':
+                yield from self.enable()
+            elif self.current_state == 'Precharge':
+                yield from self.precharge()
+            elif self.current_state == 'Run':
+                yield from self.run_state()
+            elif self.current_state == 'Error':
+                yield from self.error()
+            else:
+                # Should not happen, but a safety break
+                print(f"[SIM] Unknown state: {self.current_state}")
+                break
+            # Yield a small timeout to prevent potential infinite loops in edge cases
+            yield self.env.timeout(0.001)
+
+
+def test_scenarios(env, state_machine):
+    """
+    Drives the state machine with external inputs for scenario testing.
+    This represents an Input-Driven or Hybrid system.
+    """
+    yield env.timeout(1) # Initial delay
+
+    # Scenario 1: Successful run
+    print("\n--- SCENARIO 1: Successful Run ---")
+    state_machine.set_system_enabled(True)
+    yield env.timeout(1)
+    state_machine.set_enable_signal_active(True)
+    yield env.timeout(2) # Give time for Enable -> Precharge transition
+
+    # Precharge duration is 2s, voltage reaches threshold in 2s, transitions to Run
+    yield env.timeout(3) # Wait to ensure Run state is entered and completed
+
+    # Reset for next scenario
+    state_machine.set_system_enabled(False)
+    state_machine.set_enable_signal_active(False)
+    yield env.timeout(1)
+
+
+    # Scenario 2: Precharge Timeout leading to Error
+    print("\n--- SCENARIO 2: Precharge Timeout to Error ---")
+    state_machine.set_system_enabled(True)
+    yield env.timeout(1)
+    state_machine.set_enable_signal_active(True)
+    yield env.timeout(2) # Give time for Enable -> Precharge transition
+
+    # Force precharge to timeout by not letting voltage reach threshold within duration
+    precharge_duration_constraint = state_machine.constraints.get('Precharge_duration', 2.0)
+    # Simulate voltage not reaching threshold by extending voltage rise time or reducing rate if possible.
+    # Here, we'll just wait longer than the timeout.
+    yield env.timeout(precharge_duration_constraint + 1.0)
+
+    # State machine should have transitioned to Error. Wait for error recovery.
+    yield env.timeout(10.5) # Wait for error state to complete its cycle
+
+    # Reset for next scenario
+    state_machine.set_system_enabled(False)
+    state_machine.set_enable_signal_active(False)
+    yield env.timeout(1)
+
+
+def run_simulation():
+    env = simpy.Environment()
+    state_machine = StateMachine(env)
+    env.process(state_machine.run())
+    env.process(test_scenarios(env, state_machine)) # Use test_scenarios for input-driven
+    env.run(until=40) # Run simulation for a total of 40 seconds
+    print("[SIM] END simulation")
+
+if __name__ == '__main__':
+    run_simulation()
+```
+
+ ### Created new session: debug_session_id
+
+User > 
+        Specification:
+        {
+  "states": [
+    {
+      "name": "Idle"
+    },
+    {
+      "name": "Enable"
+    },
+    {
+      "name": "Precharge"
+    },
+    {
+      "name": "Run"
+    },
+    {
+      "name": "Error"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "Idle",
+      "to": "Enable",
+      "condition": "system_enabled"
+    },
+    {
+      "from": "Enable",
+      "to": "Precharge",
+      "condition": "enable_signal_active"
+    },
+    {
+      "from": "Precharge",
+      "to": "Run",
+      "condition": "precharge_complete"
+    },
+    {
+      "from": "Precharge",
+      "to": "Error",
+      "condition": "precharge_timeout AND voltage < threshold"
+    }
+  ],
+  "constraints": [
+    {
+      "param": "Precharge_duration",
+      "value": 2000
+    }
+  ]
+}
+        
+        Simulation Code:
+        ```python
+        import simpy
+import random
+
+class StateMachine:
+    def __init__(self, env):
+        self.env = env
+        self.current_state = 'Idle'
+        self.constraints = {
+            'Precharge_duration': 2.0,  # Defaulting to 2.0 seconds if not provided or None
+        }
+        self.voltage = 0  # Example parameter for 'voltage < threshold'
+        self.threshold = 5.0 # Example threshold
+
+        # Flags for simulating external inputs/conditions
+        self.system_enabled_flag = False
+        self.enable_signal_active_flag = False
+
+        # Internal state variables
+        self.precharge_start_time = None
+
+        print("[SIM] Starting simulation")
+
+    def log_state_entry(self, state_name):
+        print(f"[SIM][t={self.env.now:.2f}] ENTER state={state_name}")
+
+    def log_wait(self, duration, event_name):
+        print(f"[SIM][t={self.env.now:.2f}] WAIT {duration:.2f}s for {event_name}")
+
+    def log_transition(self, from_state, to_state, reason):
+        print(f"[SIM][t={self.env.now:.2f}] TRANSITION {from_state} -> {to_state} (reason={reason})")
+
+    def set_system_enabled(self, value):
+        self.system_enabled_flag = value
+
+    def set_enable_signal_active(self, value):
+        self.enable_signal_active_flag = value
+
+    def idle(self):
+        self.log_state_entry('Idle')
+        # In Idle state, we wait for the system to be enabled
+        while not self.system_enabled_flag:
+            self.log_wait(1.0, 'system_enabled')
+            yield self.env.timeout(1.0) # Poll every second if system is enabled
+        self.log_transition('Idle', 'Enable', 'system_enabled')
+        self.current_state = 'Enable'
+
+    def enable(self):
+        self.log_state_entry('Enable')
+        # In Enable state, we wait for the enable signal
+        while not self.enable_signal_active_flag:
+            self.log_wait(0.5, 'enable_signal_active')
+            yield self.env.timeout(0.5) # Poll every half second
+        self.log_transition('Enable', 'Precharge', 'enable_signal_active')
+        self.current_state = 'Precharge'
+
+    def precharge(self):
+        self.log_state_entry('Precharge')
+        self.precharge_start_time = self.env.now
+        precharge_duration = self.constraints.get('Precharge_duration', 2.0) # Use constraint or default
+
+        # Simulate voltage rising during precharge
+        voltage_rise_rate = self.threshold / precharge_duration
+        voltage_rising_process = self.env.process(self.simulate_voltage_rise(voltage_rise_rate))
+
+        # Wait for precharge completion or timeout
+        timeout_event = self.env.timeout(precharge_duration)
+        precharge_complete_event = self.env.event() # Will be set when voltage reaches threshold
+
+        # Mocking precharge complete event for simulation purposes if voltage reaches threshold
+        # In a real system, this would be an external signal or sensor reading.
+        self.env.process(self.monitor_voltage_for_precharge_completion(precharge_complete_event))
+
+        # Wait for either timeout or precharge completion
+        chosen_event = yield simpy.AllOf(
+            self.env,
+            [timeout_event, precharge_complete_event]
+        )
+
+        if timeout_event in chosen_event and not precharge_complete_event.processed:
+            # Precharge timed out
+            self.log_transition('Precharge', 'Error', 'precharge_timeout AND voltage < threshold')
+            self.current_state = 'Error'
+            self.env.remove_process(voltage_rising_process)
+        elif precharge_complete_event.processed:
+            # Precharge complete
+            self.log_transition('Precharge', 'Run', 'precharge_complete')
+            self.current_state = 'Run'
+            self.env.remove_process(voltage_rising_process)
+        else:
+            # This case should ideally not happen with AllOf, but as a fallback
+            self.log_transition('Precharge', 'Error', 'unexpected_condition')
+            self.current_state = 'Error'
+            self.env.remove_process(voltage_rising_process)
+
+
+    def simulate_voltage_rise(self, rate):
+        while True:
+            time_elapsed = self.env.now - self.precharge_start_time
+            self.voltage = min(self.threshold, rate * time_elapsed)
+            # print(f"[SIM][t={self.env.now:.2f}] Voltage: {self.voltage:.2f}") # Optional: for debugging
+            yield self.env.timeout(0.1) # Update voltage every 0.1 seconds
+
+    def monitor_voltage_for_precharge_completion(self, completion_event):
+        while self.voltage < self.threshold:
+            yield self.env.timeout(0.1)
+        if not completion_event.triggered:
+            completion_event.succeed()
+
+
+    def run_state(self):
+        self.log_state_entry('Run')
+        # In Run state, we just wait and simulate running for a bit
+        self.log_wait(5.0, 'running_process')
+        yield self.env.timeout(5.0)
+        # Transition back to Idle for this example, could be any other state or end
+        self.log_transition('Run', 'Idle', 'run_cycle_complete')
+        self.current_state = 'Idle'
+
+    def error(self):
+        self.log_state_entry('Error')
+        # In Error state, we wait for an external reset or signal
+        self.log_wait(10.0, 'error_state_recovery')
+        yield self.env.timeout(10.0)
+        # Transition back to Idle for this example
+        self.log_transition('Error', 'Idle', 'system_reset')
+        self.current_state = 'Idle'
+
+
+    def run(self):
+        while True:
+            if self.current_state == 'Idle':
+                yield from self.idle()
+            elif self.current_state == 'Enable':
+                yield from self.enable()
+            elif self.current_state == 'Precharge':
+                yield from self.precharge()
+            elif self.current_state == 'Run':
+                yield from self.run_state()
+            elif self.current_state == 'Error':
+                yield from self.error()
+            else:
+                # Should not happen, but a safety break
+                print(f"[SIM] Unknown state: {self.current_state}")
+                break
+            # Yield a small timeout to prevent potential infinite loops in edge cases
+            yield self.env.timeout(0.001)
+
+
+def test_scenarios(env, state_machine):
+    """
+    Drives the state machine with external inputs for scenario testing.
+    This represents an Input-Driven or Hybrid system.
+    """
+    yield env.timeout(1) # Initial delay
+
+    # Scenario 1: Successful run
+    print("\n--- SCENARIO 1: Successful Run ---")
+    state_machine.set_system_enabled(True)
+    yield env.timeout(1)
+    state_machine.set_enable_signal_active(True)
+    yield env.timeout(2) # Give time for Enable -> Precharge transition
+
+    # Precharge duration is 2s, voltage reaches threshold in 2s, transitions to Run
+    yield env.timeout(3) # Wait to ensure Run state is entered and completed
+
+    # Reset for next scenario
+    state_machine.set_system_enabled(False)
+    state_machine.set_enable_signal_active(False)
+    yield env.timeout(1)
+
+
+    # Scenario 2: Precharge Timeout leading to Error
+    print("\n--- SCENARIO 2: Precharge Timeout to Error ---")
+    state_machine.set_system_enabled(True)
+    yield env.timeout(1)
+    state_machine.set_enable_signal_active(True)
+    yield env.timeout(2) # Give time for Enable -> Precharge transition
+
+    # Force precharge to timeout by not letting voltage reach threshold within duration
+    precharge_duration_constraint = state_machine.constraints.get('Precharge_duration', 2.0)
+    # Simulate voltage not reaching threshold by extending voltage rise time or reducing rate if possible.
+    # Here, we'll just wait longer than the timeout.
+    yield env.timeout(precharge_duration_constraint + 1.0)
+
+    # State machine should have transitioned to Error. Wait for error recovery.
+    yield env.timeout(10.5) # Wait for error state to complete its cycle
+
+    # Reset for next scenario
+    state_machine.set_system_enabled(False)
+    state_machine.set_enable_signal_active(False)
+    yield env.timeout(1)
+
+
+def run_simulation():
+    env = simpy.Environment()
+    state_machine = StateMachine(env)
+    env.process(state_machine.run())
+    env.process(test_scenarios(env, state_machine)) # Use test_scenarios for input-driven
+    env.run(until=40) # Run simulation for a total of 40 seconds
+    print("[SIM] END simulation")
+
+if __name__ == '__main__':
+    run_simulation()
+        ```
+        
+        Please execute this code and verify the results.
+        
+[DEBUG] Sessions dict keys: ['InMemoryRunner']
+[DEBUG] Session value type for key 'InMemoryRunner': <class 'dict'>
+[DEBUG] Nested keys: ['debug_user_id']
+[DEBUG] Nested value type for key 'debug_user_id': <class 'dict'>
+[DEBUG] Triple nested keys: ['debug_session_id']
+[DEBUG] Found session from triple nested dict: debug_session_id
+[DEBUG] Session events count: 4
+[DEBUG] Session events count: 4
+[DEBUG] Response length: 3
+[DEBUG] Event 0 type: <class 'google.adk.events.event.Event'>
+[DEBUG] Event content parts: 1
+[DEBUG] Part type: <class 'google.genai.types.Part'>
+[DEBUG] Part text (snippet): None
+[DEBUG] Part function_response: Yes
+[DEBUG] Event 1 type: <class 'google.adk.events.event.Event'>
+[DEBUG] Event content parts: 1
+[DEBUG] Part type: <class 'google.genai.types.Part'>
+[DEBUG] Part text (snippet): None
+[DEBUG] Part function_response: Yes
+[DEBUG] Event 2 type: <class 'google.adk.events.event.Event'>
+[DEBUG] Event content parts: 0
+
+ ### Created new session: debug_session_id
+
+User > Specification:
+{'states': [{'name': 'Idle'}, {'name': 'Enable'}, {'name': 'Precharge'}, {'name': 'Run'}, {'name': 'Error'}], 'transitions': [{'from': 'Idle', 'to': 'Enable', 'condition': 'system_enabled'}, {'from': 'Enable', 'to': 'Precharge', 'condition': 'enable_signal_active'}, {'from': 'Precharge', 'to': 'Run', 'condition': 'precharge_complete'}, {'from': 'Precharge', 'to': 'Error', 'condition': 'precharge_timeout AND voltage < threshold'}], 'constraints': [{'param': 'Precharge_duration', 'value': 2000}]}
+
+FEEDBACK FROM PREVIOUS ATTEMPT (FIX THESE ERRORS):
+Verification Failed: Simulation Execution Errors
+Logs/Errors:
+[SIM] Starting simulation
+[SIM][t=0.00] ENTER state=Idle
+[SIM][t=0.00] WAIT 1.00s for system_enabled
+[SIM][t=1.00] WAIT 1.00s for system_enabled
+[SIM][t=2.00] TRANSITION Idle -> Enable (reason=system_enabled)
+[SIM][t=2.00] ENTER state=Enable
+[SIM][t=2.00] TRANSITION Enable -> Precharge (reason=enable_signal_active)
+[SIM][t=2.00] ENTER state=Precharge
+[SIM][t=4.00] TRANSITION Precharge -> Run (reason=precharge_complete)
+
+[SYSTEM] Simulation Execution Errors:
+{'content': [{'type': 'text', 'text': 'LOGS:\n[SIM] Starting simulation\n[SIM][t=0.00] ENTER state=Idle\n[SIM][t=0.00] WAIT 1.00s for system_enabled\n[SIM][t=1.00] WAIT 1.00s for system_enabled\n\n--- SCENARIO 1: Successful Run ---\n[SIM][t=2.00] TRANSITION Idle -> Enable (reason=system_enabled)\n[SIM][t=2.00] ENTER state=Enable\n[SIM][t=2.00] TRANSITION Enable -> Precharge (reason=enable_signal_active)\n[SIM][t=2.00] ENTER state=Precharge\n[SIM][t=4.00] TRANSITION Precharge -> Run (reason=precharge_complete)\n\n\nERRORS:\nTraceback (most recent call last):\n  File "<string>", line 137, in run\n  File "<string>", line 89, in precharge\nAttributeError: \'Environment\' object has no attribute \'remove_process\'. Did you mean: \'active_process\'?\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File "E:\\VeriSpec\\verispec-lite\\servers\\simulation_server.py", line 41, in execute_simulation_code\n    exec(code_str, exec_globals)\n    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^\n  File "<string>", line 204, in <module>\n  File "<string>", line 200, in run_simulation\n  File "C:\\Users\\24760\\AppData\\Roaming\\Python\\Python313\\site-packages\\simpy\\core.py", line 246, in run\n    self.step()\n    ~~~~~~~~~^^\n  File "C:\\Users\\24760\\AppData\\Roaming\\Python\\Python313\\site-packages\\simpy\\core.py", line 204, in step\n    raise exc\nAttributeError: \'Environment\' object has no attribute \'remove_process\'\n'}], 'structuredContent': {'result': 'LOGS:\n[SIM] Starting simulation\n[SIM][t=0.00] ENTER state=Idle\n[SIM][t=0.00] WAIT 1.00s for system_enabled\n[SIM][t=1.00] WAIT 1.00s for system_enabled\n\n--- SCENARIO 1: Successful Run ---\n[SIM][t=2.00] TRANSITION Idle -> Enable (reason=system_enabled)\n[SIM][t=2.00] ENTER state=Enable\n[SIM][t=2.00] TRANSITION Enable -> Precharge (reason=enable_signal_active)\n[SIM][t=2.00] ENTER state=Precharge\n[SIM][t=4.00] TRANSITION Precharge -> Run (reason=precharge_complete)\n\n\nERRORS:\nTraceback (most recent call last):\n  File "<string>", line 137, in run\n  File "<string>", line 89, in precharge\nAttributeError: \'Environment\' object has no attribute \'remove_process\'. Did you mean: \'active_process\'?\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File "E:\\VeriSpec\\verispec-lite\\servers\\simulation_server.py", line 41, in execute_simulation_code\n    exec(code_str, exec_globals)\n    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^\n  File "<string>", line 204, in <module>\n  File "<string>", line 200, in run_simulation\n  File "C:\\Users\\24760\\AppData\\Roaming\\Python\\Python313\\site-packages\\simpy\\core.py", line 246, in run\n    self.step()\n    ~~~~~~~~~^^\n  File "C:\\Users\\24760\\AppData\\Roaming\\Python\\Python313\\site-packages\\simpy\\core.py", line 204, in step\n    raise exc\nAttributeError: \'Environment\' object has no attribute \'remove_process\'\n'}, 'isError': False}
+
+architect_agent > ```python
+import simpy
+import random
+
+class StateMachine:
+    def __init__(self, env):
+        self.env = env
+        self.current_state = 'Idle'
+        self.constraints = {
+            'Precharge_duration': 2.0  # Default to 2 seconds if not specified or None
+        }
+        self.system_enabled = False
+        self.enable_signal_active = False
+        self.voltage = 0.0
+        self.threshold = 5.0  # Default threshold
+
+    def log_transition(self, from_state, to_state, reason):
+        print(f"[SIM][t={self.env.now:.2f}] TRANSITION {from_state} -> {to_state} (reason={reason})")
+
+    def log_state_entry(self, state_name):
+        print(f"[SIM][t={self.env.now:.2f}] ENTER state={state_name}")
+
+    def log_wait(self, duration, event_name):
+        print(f"[SIM][t={self.env.now:.2f}] WAIT {duration:.2f}s for {event_name}")
+
+    def log_end(self, final_state):
+        print(f"[SIM][t={self.env.now:.2f}] END state={final_state}")
+
+    def idle(self):
+        self.log_state_entry('Idle')
+        # In a real system, we'd be waiting for an external event.
+        # For simulation, we'll have test_scenarios drive the 'system_enabled' flag.
+        while not self.system_enabled:
+            self.log_wait(1.0, 'system_enabled')
+            yield self.env.timeout(1.0) # Simulate waiting for the signal
+
+    def enable(self):
+        self.log_state_entry('Enable')
+        # Similar to Idle, waiting for an external signal.
+        while not self.enable_signal_active:
+            self.log_wait(1.0, 'enable_signal_active')
+            yield self.env.timeout(1.0) # Simulate waiting for the signal
+
+    def precharge(self):
+        self.log_state_entry('Precharge')
+        precharge_duration = self.constraints.get('Precharge_duration', 2.0) # Default to 2s
+
+        # Simulate voltage rising during precharge
+        start_time = self.env.now
+        voltage_increase_rate = self.threshold / precharge_duration # Voltage rises linearly
+
+        while self.env.now - start_time < precharge_duration:
+            elapsed_time = self.env.now - start_time
+            self.voltage = voltage_increase_rate * elapsed_time
+            if self.voltage >= self.threshold:
+                self.voltage = self.threshold # Cap voltage at threshold
+            
+            # Check for timeout condition
+            if self.env.now - start_time >= precharge_duration:
+                self.log_wait(precharge_duration - elapsed_time, 'precharge_complete or precharge_timeout')
+                yield self.env.timeout(precharge_duration - elapsed_time)
+                break # Exit loop if duration is met
+
+            # Check for error condition within the loop
+            if self.voltage < self.threshold and self.env.now - start_time >= precharge_duration:
+                 self.log_transition('Precharge', 'Error', 'precharge_timeout AND voltage < threshold')
+                 self.current_state = 'Error'
+                 return # Exit precharge state
+
+            yield self.env.timeout(0.1) # Simulate small time steps for voltage increase
+
+        # After the loop, check the final conditions
+        if self.voltage >= self.threshold:
+            self.log_transition('Precharge', 'Run', 'precharge_complete')
+            self.current_state = 'Run'
+        elif self.env.now - start_time >= precharge_duration:
+            self.log_transition('Precharge', 'Error', 'precharge_timeout AND voltage < threshold')
+            self.current_state = 'Error'
+        else: # Should not happen if loop logic is correct, but as a fallback
+            self.log_transition('Precharge', 'Error', 'unexpected condition')
+            self.current_state = 'Error'
+
+
+    def run(self):
+        while True:
+            if self.current_state == 'Idle':
+                yield from self.idle()
+            elif self.current_state == 'Enable':
+                yield from self.enable()
+            elif self.current_state == 'Precharge':
+                yield from self.precharge()
+            elif self.current_state == 'Run':
+                self.log_state_entry('Run')
+                # In a real scenario, the 'Run' state might have its own logic.
+                # For this example, we'll consider it a terminal state for simplicity,
+                # or just a state we pass through.
+                # To ensure it yields and doesn't block, we add a small timeout.
+                yield self.env.timeout(0.001) # Ensure it's a generator
+                self.current_state = 'Idle' # Transition back to Idle for simplicity in this example
+                self.log_transition('Run', 'Idle', 'cycle_complete')
+            elif self.current_state == 'Error':
+                self.log_state_entry('Error')
+                # Error state might involve logging or attempting recovery.
+                # For this example, it's a terminal state.
+                yield self.env.timeout(0.001) # Ensure it's a generator
+                self.log_end('Error')
+                break # Exit simulation loop
+
+    def set_system_enabled(self, value):
+        self.system_enabled = value
+
+    def set_enable_signal_active(self, value):
+        self.enable_signal_active = value
+
+def test_scenarios(env, state_machine):
+    yield env.timeout(0.001) # Start immediately
+
+    # Scenario 1: Successful run
+    print("\n--- SCENARIO 1: Successful Run ---")
+    state_machine.set_system_enabled(True)
+    yield env.timeout(1.0) # Wait for system_enabled to be processed in Idle state
+    state_machine.set_enable_signal_active(True)
+    yield env.timeout(1.0) # Wait for enable_signal_active to be processed in Enable state
+    yield env.timeout(state_machine.constraints.get('Precharge_duration', 2.0) + 0.5) # Wait a bit longer than precharge
+    
+    # If we reach 'Run' state, it means precharge_complete was triggered
+    if state_machine.current_state == 'Run':
+        print("[SIM] Scenario 1: Reached Run state successfully.")
+        yield env.timeout(1.0) # Simulate some time in Run state
+        # If we want to cycle, we might reset enable signals or just let run() handle it
+    else:
+        print(f"[SIM] Scenario 1: Did not reach Run state. Current state: {state_machine.current_state}")
+
+    # Reset for next scenario if needed (or run a new simulation)
+    # For simplicity, we will just let the simulation end or proceed to error scenario if applicable.
+
+    # Scenario 2: Precharge timeout error
+    print("\n--- SCENARIO 2: Precharge Timeout Error ---")
+    state_machine.current_state = 'Idle' # Reset state for a new sequence
+    state_machine.system_enabled = False
+    state_machine.enable_signal_active = False
+    state_machine.voltage = 0.0
+
+    state_machine.set_system_enabled(True)
+    yield env.timeout(1.0)
+    state_machine.set_enable_signal_active(True)
+    yield env.timeout(1.0)
+    # Do not let precharge complete, simulate a timeout
+    # We'll manually trigger the timeout logic if voltage is still low after duration
+    # In a real scenario, this would be implicit. Here we are just driving the flags.
+    precharge_duration = state_machine.constraints.get('Precharge_duration', 2.0)
+    yield env.timeout(precharge_duration + 1.0) # Wait longer than precharge duration
+    
+    # If after this time, we are still in precharge and voltage is low, it should error out.
+    if state_machine.current_state == 'Precharge':
+        print(f"[SIM] Scenario 2: Stimulating precharge timeout condition at t={env.now:.2f}")
+        # Manually set voltage low and let the next state check transition
+        state_machine.voltage = 1.0 # Ensure voltage is below threshold
+        # Yield a tiny bit to allow state machine loop to re-evaluate
+        yield env.timeout(0.001) 
+    
+    if state_machine.current_state == 'Error':
+        print("[SIM] Scenario 2: Reached Error state due to precharge timeout as expected.")
+    else:
+        print(f"[SIM] Scenario 2: Did not reach Error state. Current state: {state_machine.current_state}")
+
+
+def run_simulation():
+    env = simpy.Environment()
+    state_machine = StateMachine(env)
+
+    print("[SIM] Starting simulation")
+    env.process(state_machine.run())
+    env.process(test_scenarios(env, state_machine))
+
+    # Run simulation for a fixed duration to ensure all scenarios can potentially play out
+    # or until the simulation naturally ends (e.g., in Error state).
+    env.run(until=20) 
+    
+    # Check if simulation ended prematurely due to an error state
+    if state_machine.current_state != 'Error':
+        state_machine.log_end(state_machine.current_state)
+    print("[SIM] Simulation finished")
+
+
+if __name__ == "__main__":
+    run_simulation()
+```
+
+ ### Created new session: debug_session_id
+
+User > 
+        Specification:
+        {
+  "states": [
+    {
+      "name": "Idle"
+    },
+    {
+      "name": "Enable"
+    },
+    {
+      "name": "Precharge"
+    },
+    {
+      "name": "Run"
+    },
+    {
+      "name": "Error"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "Idle",
+      "to": "Enable",
+      "condition": "system_enabled"
+    },
+    {
+      "from": "Enable",
+      "to": "Precharge",
+      "condition": "enable_signal_active"
+    },
+    {
+      "from": "Precharge",
+      "to": "Run",
+      "condition": "precharge_complete"
+    },
+    {
+      "from": "Precharge",
+      "to": "Error",
+      "condition": "precharge_timeout AND voltage < threshold"
+    }
+  ],
+  "constraints": [
+    {
+      "param": "Precharge_duration",
+      "value": 2000
+    }
+  ]
+}
+        
+        Simulation Code:
+        ```python
+        import simpy
+import random
+
+class StateMachine:
+    def __init__(self, env):
+        self.env = env
+        self.current_state = 'Idle'
+        self.constraints = {
+            'Precharge_duration': 2.0  # Default to 2 seconds if not specified or None
+        }
+        self.system_enabled = False
+        self.enable_signal_active = False
+        self.voltage = 0.0
+        self.threshold = 5.0  # Default threshold
+
+    def log_transition(self, from_state, to_state, reason):
+        print(f"[SIM][t={self.env.now:.2f}] TRANSITION {from_state} -> {to_state} (reason={reason})")
+
+    def log_state_entry(self, state_name):
+        print(f"[SIM][t={self.env.now:.2f}] ENTER state={state_name}")
+
+    def log_wait(self, duration, event_name):
+        print(f"[SIM][t={self.env.now:.2f}] WAIT {duration:.2f}s for {event_name}")
+
+    def log_end(self, final_state):
+        print(f"[SIM][t={self.env.now:.2f}] END state={final_state}")
+
+    def idle(self):
+        self.log_state_entry('Idle')
+        # In a real system, we'd be waiting for an external event.
+        # For simulation, we'll have test_scenarios drive the 'system_enabled' flag.
+        while not self.system_enabled:
+            self.log_wait(1.0, 'system_enabled')
+            yield self.env.timeout(1.0) # Simulate waiting for the signal
+
+    def enable(self):
+        self.log_state_entry('Enable')
+        # Similar to Idle, waiting for an external signal.
+        while not self.enable_signal_active:
+            self.log_wait(1.0, 'enable_signal_active')
+            yield self.env.timeout(1.0) # Simulate waiting for the signal
+
+    def precharge(self):
+        self.log_state_entry('Precharge')
+        precharge_duration = self.constraints.get('Precharge_duration', 2.0) # Default to 2s
+
+        # Simulate voltage rising during precharge
+        start_time = self.env.now
+        voltage_increase_rate = self.threshold / precharge_duration # Voltage rises linearly
+
+        while self.env.now - start_time < precharge_duration:
+            elapsed_time = self.env.now - start_time
+            self.voltage = voltage_increase_rate * elapsed_time
+            if self.voltage >= self.threshold:
+                self.voltage = self.threshold # Cap voltage at threshold
+            
+            # Check for timeout condition
+            if self.env.now - start_time >= precharge_duration:
+                self.log_wait(precharge_duration - elapsed_time, 'precharge_complete or precharge_timeout')
+                yield self.env.timeout(precharge_duration - elapsed_time)
+                break # Exit loop if duration is met
+
+            # Check for error condition within the loop
+            if self.voltage < self.threshold and self.env.now - start_time >= precharge_duration:
+                 self.log_transition('Precharge', 'Error', 'precharge_timeout AND voltage < threshold')
+                 self.current_state = 'Error'
+                 return # Exit precharge state
+
+            yield self.env.timeout(0.1) # Simulate small time steps for voltage increase
+
+        # After the loop, check the final conditions
+        if self.voltage >= self.threshold:
+            self.log_transition('Precharge', 'Run', 'precharge_complete')
+            self.current_state = 'Run'
+        elif self.env.now - start_time >= precharge_duration:
+            self.log_transition('Precharge', 'Error', 'precharge_timeout AND voltage < threshold')
+            self.current_state = 'Error'
+        else: # Should not happen if loop logic is correct, but as a fallback
+            self.log_transition('Precharge', 'Error', 'unexpected condition')
+            self.current_state = 'Error'
+
+
+    def run(self):
+        while True:
+            if self.current_state == 'Idle':
+                yield from self.idle()
+            elif self.current_state == 'Enable':
+                yield from self.enable()
+            elif self.current_state == 'Precharge':
+                yield from self.precharge()
+            elif self.current_state == 'Run':
+                self.log_state_entry('Run')
+                # In a real scenario, the 'Run' state might have its own logic.
+                # For this example, we'll consider it a terminal state for simplicity,
+                # or just a state we pass through.
+                # To ensure it yields and doesn't block, we add a small timeout.
+                yield self.env.timeout(0.001) # Ensure it's a generator
+                self.current_state = 'Idle' # Transition back to Idle for simplicity in this example
+                self.log_transition('Run', 'Idle', 'cycle_complete')
+            elif self.current_state == 'Error':
+                self.log_state_entry('Error')
+                # Error state might involve logging or attempting recovery.
+                # For this example, it's a terminal state.
+                yield self.env.timeout(0.001) # Ensure it's a generator
+                self.log_end('Error')
+                break # Exit simulation loop
+
+    def set_system_enabled(self, value):
+        self.system_enabled = value
+
+    def set_enable_signal_active(self, value):
+        self.enable_signal_active = value
+
+def test_scenarios(env, state_machine):
+    yield env.timeout(0.001) # Start immediately
+
+    # Scenario 1: Successful run
+    print("\n--- SCENARIO 1: Successful Run ---")
+    state_machine.set_system_enabled(True)
+    yield env.timeout(1.0) # Wait for system_enabled to be processed in Idle state
+    state_machine.set_enable_signal_active(True)
+    yield env.timeout(1.0) # Wait for enable_signal_active to be processed in Enable state
+    yield env.timeout(state_machine.constraints.get('Precharge_duration', 2.0) + 0.5) # Wait a bit longer than precharge
+    
+    # If we reach 'Run' state, it means precharge_complete was triggered
+    if state_machine.current_state == 'Run':
+        print("[SIM] Scenario 1: Reached Run state successfully.")
+        yield env.timeout(1.0) # Simulate some time in Run state
+        # If we want to cycle, we might reset enable signals or just let run() handle it
+    else:
+        print(f"[SIM] Scenario 1: Did not reach Run state. Current state: {state_machine.current_state}")
+
+    # Reset for next scenario if needed (or run a new simulation)
+    # For simplicity, we will just let the simulation end or proceed to error scenario if applicable.
+
+    # Scenario 2: Precharge timeout error
+    print("\n--- SCENARIO 2: Precharge Timeout Error ---")
+    state_machine.current_state = 'Idle' # Reset state for a new sequence
+    state_machine.system_enabled = False
+    state_machine.enable_signal_active = False
+    state_machine.voltage = 0.0
+
+    state_machine.set_system_enabled(True)
+    yield env.timeout(1.0)
+    state_machine.set_enable_signal_active(True)
+    yield env.timeout(1.0)
+    # Do not let precharge complete, simulate a timeout
+    # We'll manually trigger the timeout logic if voltage is still low after duration
+    # In a real scenario, this would be implicit. Here we are just driving the flags.
+    precharge_duration = state_machine.constraints.get('Precharge_duration', 2.0)
+    yield env.timeout(precharge_duration + 1.0) # Wait longer than precharge duration
+    
+    # If after this time, we are still in precharge and voltage is low, it should error out.
+    if state_machine.current_state == 'Precharge':
+        print(f"[SIM] Scenario 2: Stimulating precharge timeout condition at t={env.now:.2f}")
+        # Manually set voltage low and let the next state check transition
+        state_machine.voltage = 1.0 # Ensure voltage is below threshold
+        # Yield a tiny bit to allow state machine loop to re-evaluate
+        yield env.timeout(0.001) 
+    
+    if state_machine.current_state == 'Error':
+        print("[SIM] Scenario 2: Reached Error state due to precharge timeout as expected.")
+    else:
+        print(f"[SIM] Scenario 2: Did not reach Error state. Current state: {state_machine.current_state}")
+
+
+def run_simulation():
+    env = simpy.Environment()
+    state_machine = StateMachine(env)
+
+    print("[SIM] Starting simulation")
+    env.process(state_machine.run())
+    env.process(test_scenarios(env, state_machine))
+
+    # Run simulation for a fixed duration to ensure all scenarios can potentially play out
+    # or until the simulation naturally ends (e.g., in Error state).
+    env.run(until=20) 
+    
+    # Check if simulation ended prematurely due to an error state
+    if state_machine.current_state != 'Error':
+        state_machine.log_end(state_machine.current_state)
+    print("[SIM] Simulation finished")
+
+
+if __name__ == "__main__":
+    run_simulation()
+        ```
+        
+        Please execute this code and verify the results.
+        
+[DEBUG] Sessions dict keys: ['InMemoryRunner']
+[DEBUG] Session value type for key 'InMemoryRunner': <class 'dict'>
+[DEBUG] Nested keys: ['debug_user_id']
+[DEBUG] Nested value type for key 'debug_user_id': <class 'dict'>
+[DEBUG] Triple nested keys: ['debug_session_id']
+[DEBUG] Found session from triple nested dict: debug_session_id
+[DEBUG] Session events count: 4
+[DEBUG] Session events count: 4
+[DEBUG] Response length: 3
+[DEBUG] Event 0 type: <class 'google.adk.events.event.Event'>
+[DEBUG] Event content parts: 1
+[DEBUG] Part type: <class 'google.genai.types.Part'>
+[DEBUG] Part text (snippet): None
+[DEBUG] Part function_response: Yes
+[DEBUG] Event 1 type: <class 'google.adk.events.event.Event'>
+[DEBUG] Event content parts: 1
+[DEBUG] Part type: <class 'google.genai.types.Part'>
+[DEBUG] Part text (snippet): None
+[DEBUG] Part function_response: Yes
+[DEBUG] Event 2 type: <class 'google.adk.events.event.Event'>
+[DEBUG] Event content parts: 0
+
+ ### Created new session: debug_session_id
+
+User > Specification:
+{'states': [{'name': 'Idle'}, {'name': 'Enable'}, {'name': 'Precharge'}, {'name': 'Run'}, {'name': 'Error'}], 'transitions': [{'from': 'Idle', 'to': 'Enable', 'condition': 'system_enabled'}, {'from': 'Enable', 'to': 'Precharge', 'condition': 'enable_signal_active'}, {'from': 'Precharge', 'to': 'Run', 'condition': 'precharge_complete'}, {'from': 'Precharge', 'to': 'Error', 'condition': 'precharge_timeout AND voltage < threshold'}], 'constraints': [{'param': 'Precharge_duration', 'value': 2000}]}
+
+FEEDBACK FROM PREVIOUS ATTEMPT (FIX THESE ERRORS):
+Verification Failed: Simulation Execution Errors
+Logs/Errors:
+
+[SYSTEM] Simulation Execution Errors:
+{'content': [{'type': 'text', 'text': '\nERRORS:\nTraceback (most recent call last):\n  File "E:\\VeriSpec\\verispec-lite\\servers\\simulation_server.py", line 41, in execute_simulation_code\n    exec(code_str, exec_globals)\n    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^\n  File "<string>", line 186\n    if __name__ == "__main__:\n                   ^\nSyntaxError: unterminated string literal (detected at line 186)\n'}], 'structuredContent': {'result': '\nERRORS:\nTraceback (most recent call last):\n  File "E:\\VeriSpec\\verispec-lite\\servers\\simulation_server.py", line 41, in execute_simulation_code\n    exec(code_str, exec_globals)\n    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^\n  File "<string>", line 186\n    if __name__ == "__main__:\n                   ^\nSyntaxError: unterminated string literal (detected at line 186)\n'}, 'isError': False}
+
+architect_agent > ```python
+import simpy
+
+class StateMachine:
+    def __init__(self, env):
+        self.env = env
+        self.current_state = 'Idle'
+        self.system_enabled = False
+        self.enable_signal_active = False
+        self.precharge_complete = False
+        self.voltage = 0
+        self.threshold = 5.0  # Default threshold value
+        self.precharge_duration = 2.0  # Default precharge duration in seconds (from 2000ms)
+        self.precharge_timeout_event = env.event()
+
+        # Logging
+        print("[SIM] Starting simulation")
+
+    def log_state_entry(self, state_name):
+        print(f"[SIM][t={self.env.now:.2f}] ENTER state={state_name}")
+
+    def log_wait(self, duration, event_name):
+        print(f"[SIM][t={self.env.now:.2f}] WAIT {duration}s for {event_name}")
+
+    def log_transition(self, from_state, to_state, reason):
+        print(f"[SIM][t={self.env.now:.2f}] TRANSITION {from_state} -> {to_state} (reason={reason})")
+
+    def log_end(self, final_state):
+        print(f"[SIM][t={self.env.now:.2f}] END state={final_state}")
+
+    def idle(self):
+        self.log_state_entry('Idle')
+        # In a real system, this state might wait for an external event
+        # For this simulation, it transitions immediately if system_enabled
+        yield self.env.timeout(0.001) # Ensure it's a generator
+
+    def enable_state(self):
+        self.log_state_entry('Enable')
+        # In a real system, this state might wait for an external signal
+        # For this simulation, it transitions immediately if enable_signal_active
+        yield self.env.timeout(0.001) # Ensure it's a generator
+
+    def precharge(self):
+        self.log_state_entry('Precharge')
+        self.precharge_complete = False
+        self.precharge_timeout_event = self.env.event()
+
+        # Start the timeout event
+        timeout_task = self.env.process(self.precharge_timeout_process())
+        
+        # Wait for either precharge completion or timeout
+        yield self.precharge_timeout_event | self.env.timeout(self.precharge_duration)
+
+        # Cleanup the timeout task if it's still running
+        if not self.precharge_timeout_event.triggered:
+            timeout_task.interrupt()
+        
+        yield self.env.timeout(0.001) # Ensure it's a generator
+
+    def precharge_timeout_process(self):
+        try:
+            self.log_wait(self.precharge_duration, "precharge_timeout")
+            yield self.env.timeout(self.precharge_duration)
+            self.precharge_timeout_event.succeed()
+        except simpy.Interrupt:
+            pass
+
+    def run_state(self):
+        self.log_state_entry('Run')
+        # In a real system, this state would perform its primary function
+        # For this simulation, we'll assume it runs until the simulation ends or an error occurs.
+        yield self.env.timeout(1) # Simulate some work, make it a generator
+
+    def error_state(self):
+        self.log_state_entry('Error')
+        # In an error state, the system typically stops or enters a safe mode.
+        # For this simulation, we'll just log and stop further transitions from here.
+        yield self.env.timeout(0.001) # Ensure it's a generator
+
+    def run(self):
+        while True:
+            if self.current_state == 'Idle':
+                yield from self.idle()
+                # Check for transition to Enable
+                if self.system_enabled:
+                    self.log_transition('Idle', 'Enable', 'system_enabled')
+                    self.current_state = 'Enable'
+                    continue
+            elif self.current_state == 'Enable':
+                yield from self.enable_state()
+                # Check for transition to Precharge
+                if self.enable_signal_active:
+                    self.log_transition('Enable', 'Precharge', 'enable_signal_active')
+                    self.current_state = 'Precharge'
+                    continue
+            elif self.current_state == 'Precharge':
+                yield from self.precharge()
+                # Check for transitions from Precharge
+                if self.precharge_complete:
+                    self.log_transition('Precharge', 'Run', 'precharge_complete')
+                    self.current_state = 'Run'
+                    continue
+                elif self.precharge_timeout_event.triggered and self.voltage < self.threshold:
+                    self.log_transition('Precharge', 'Error', 'precharge_timeout AND voltage < threshold')
+                    self.current_state = 'Error'
+                    continue
+            elif self.current_state == 'Run':
+                yield from self.run_state()
+                # In a real system, there would be transitions out of Run state.
+                # For this example, let's assume it stays in Run until simulation ends or a global stop signal.
+                # To make this example run longer, we just yield timeout.
+                yield self.env.timeout(0.001) # Ensure it's a generator
+            elif self.current_state == 'Error':
+                yield from self.error_state()
+                # No further transitions from Error state in this example
+                break # Exit the loop if in error state
+
+def test_scenarios(env, state_machine):
+    # CASE A: Input-Driven or Hybrid Systems
+    # This system appears to be time-driven with some input dependencies.
+    # We'll simulate input changes and time-based events.
+
+    # Initial state: Idle
+    yield env.timeout(1)
+
+    # Simulate system enablement
+    print("[SCENARIO] Setting system_enabled = True")
+    state_machine.system_enabled = True
+    yield env.timeout(1)
+
+    # Simulate enable signal activation
+    print("[SCENARIO] Setting enable_signal_active = True")
+    state_machine.enable_signal_active = True
+    yield env.timeout(1)
+
+    # Simulate precharge completion (before timeout)
+    print("[SCENARIO] Setting precharge_complete = True")
+    state_machine.precharge_complete = True
+    yield env.timeout(1)
+
+    # In 'Run' state, let's simulate voltage change and then a timeout scenario
+    print("[SCENARIO] Simulating voltage change and potential error")
+    state_machine.voltage = 4.0  # Below threshold
+    yield env.timeout(state_machine.precharge_duration + 2) # Wait longer than precharge_duration to ensure timeout logic is tested if precharge_complete wasn't set
+
+    # If we are still in Run, let's try to trigger an error condition by going back to Idle concept
+    # This specific state machine does not have a direct way to re-enter precharge from Run for error testing.
+    # To demonstrate the 'precharge_timeout AND voltage < threshold' transition, we need to be in Precharge.
+    # Let's reset and try again to specifically trigger the error.
+
+    # Resetting for a focused error scenario test
+    print("\n[SCENARIO] Resetting for focused error scenario")
+    state_machine.current_state = 'Idle'
+    state_machine.system_enabled = False
+    state_machine.enable_signal_active = False
+    state_machine.precharge_complete = False
+    state_machine.voltage = 0
+    state_machine.precharge_timeout_event = env.event() # Reset event
+
+    yield env.timeout(1)
+    print("[SCENARIO] Setting system_enabled = True for error test")
+    state_machine.system_enabled = True
+    yield env.timeout(1)
+    print("[SCENARIO] Setting enable_signal_active = True for error test")
+    state_machine.enable_signal_active = True
+    yield env.timeout(1)
+
+    # Now, we are in Precharge. Let the timeout happen.
+    print(f"[SCENARIO] Allowing Precharge to timeout (Duration: {state_machine.precharge_duration}s)")
+    state_machine.voltage = 3.0 # Ensure voltage is below threshold
+    yield env.timeout(state_machine.precharge_duration + 1) # Wait a bit longer than duration
+
+    # If the error state was entered, the simulation might end soon if Error state has no further yields or breaks loop
+    # We'll let it run for a bit more to see the final state logged.
+    yield env.timeout(2)
+
+
+def run_simulation():
+    env = simpy.Environment()
+    state_machine = StateMachine(env)
+
+    # Start the state machine process
+    env.process(state_machine.run())
+
+    # Start the scenario process for input-driven testing
+    env.process(test_scenarios(env, state_machine))
+
+    # Run the simulation until a certain time
+    # The test_scenarios will drive transitions, but we need a general run duration.
+    # Let's set a generous time to allow scenarios to complete.
+    simulation_duration = 20
+    env.run(until=simulation_duration)
+
+    # Log the end of simulation
+    # The final state logged here is based on the state machine's last known state at env.now
+    # which might not be the absolute 'final' state if the simulation was cut short by env.run()
+    # A more robust way is to check state_machine.current_state after env.run()
+    final_state = state_machine.current_state
+    if final_state != 'Error': # Avoid logging end if error state inherently stops the simulation
+        state_machine.log_end(final_state)
+    else:
+        print(f"[SIM][t={env.now:.2f}] END simulation (reached Error state)")
+
+
+if __name__ == "__main__":
+    run_simulation()
+```
+
+ ### Created new session: debug_session_id
+
+User > 
+        Specification:
+        {
+  "states": [
+    {
+      "name": "Idle"
+    },
+    {
+      "name": "Enable"
+    },
+    {
+      "name": "Precharge"
+    },
+    {
+      "name": "Run"
+    },
+    {
+      "name": "Error"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "Idle",
+      "to": "Enable",
+      "condition": "system_enabled"
+    },
+    {
+      "from": "Enable",
+      "to": "Precharge",
+      "condition": "enable_signal_active"
+    },
+    {
+      "from": "Precharge",
+      "to": "Run",
+      "condition": "precharge_complete"
+    },
+    {
+      "from": "Precharge",
+      "to": "Error",
+      "condition": "precharge_timeout AND voltage < threshold"
+    }
+  ],
+  "constraints": [
+    {
+      "param": "Precharge_duration",
+      "value": 2000
+    }
+  ]
+}
+        
+        Simulation Code:
+        ```python
+        import simpy
+
+class StateMachine:
+    def __init__(self, env):
+        self.env = env
+        self.current_state = 'Idle'
+        self.system_enabled = False
+        self.enable_signal_active = False
+        self.precharge_complete = False
+        self.voltage = 0
+        self.threshold = 5.0  # Default threshold value
+        self.precharge_duration = 2.0  # Default precharge duration in seconds (from 2000ms)
+        self.precharge_timeout_event = env.event()
+
+        # Logging
+        print("[SIM] Starting simulation")
+
+    def log_state_entry(self, state_name):
+        print(f"[SIM][t={self.env.now:.2f}] ENTER state={state_name}")
+
+    def log_wait(self, duration, event_name):
+        print(f"[SIM][t={self.env.now:.2f}] WAIT {duration}s for {event_name}")
+
+    def log_transition(self, from_state, to_state, reason):
+        print(f"[SIM][t={self.env.now:.2f}] TRANSITION {from_state} -> {to_state} (reason={reason})")
+
+    def log_end(self, final_state):
+        print(f"[SIM][t={self.env.now:.2f}] END state={final_state}")
+
+    def idle(self):
+        self.log_state_entry('Idle')
+        # In a real system, this state might wait for an external event
+        # For this simulation, it transitions immediately if system_enabled
+        yield self.env.timeout(0.001) # Ensure it's a generator
+
+    def enable_state(self):
+        self.log_state_entry('Enable')
+        # In a real system, this state might wait for an external signal
+        # For this simulation, it transitions immediately if enable_signal_active
+        yield self.env.timeout(0.001) # Ensure it's a generator
+
+    def precharge(self):
+        self.log_state_entry('Precharge')
+        self.precharge_complete = False
+        self.precharge_timeout_event = self.env.event()
+
+        # Start the timeout event
+        timeout_task = self.env.process(self.precharge_timeout_process())
+        
+        # Wait for either precharge completion or timeout
+        yield self.precharge_timeout_event | self.env.timeout(self.precharge_duration)
+
+        # Cleanup the timeout task if it's still running
+        if not self.precharge_timeout_event.triggered:
+            timeout_task.interrupt()
+        
+        yield self.env.timeout(0.001) # Ensure it's a generator
+
+    def precharge_timeout_process(self):
+        try:
+            self.log_wait(self.precharge_duration, "precharge_timeout")
+            yield self.env.timeout(self.precharge_duration)
+            self.precharge_timeout_event.succeed()
+        except simpy.Interrupt:
+            pass
+
+    def run_state(self):
+        self.log_state_entry('Run')
+        # In a real system, this state would perform its primary function
+        # For this simulation, we'll assume it runs until the simulation ends or an error occurs.
+        yield self.env.timeout(1) # Simulate some work, make it a generator
+
+    def error_state(self):
+        self.log_state_entry('Error')
+        # In an error state, the system typically stops or enters a safe mode.
+        # For this simulation, we'll just log and stop further transitions from here.
+        yield self.env.timeout(0.001) # Ensure it's a generator
+
+    def run(self):
+        while True:
+            if self.current_state == 'Idle':
+                yield from self.idle()
+                # Check for transition to Enable
+                if self.system_enabled:
+                    self.log_transition('Idle', 'Enable', 'system_enabled')
+                    self.current_state = 'Enable'
+                    continue
+            elif self.current_state == 'Enable':
+                yield from self.enable_state()
+                # Check for transition to Precharge
+                if self.enable_signal_active:
+                    self.log_transition('Enable', 'Precharge', 'enable_signal_active')
+                    self.current_state = 'Precharge'
+                    continue
+            elif self.current_state == 'Precharge':
+                yield from self.precharge()
+                # Check for transitions from Precharge
+                if self.precharge_complete:
+                    self.log_transition('Precharge', 'Run', 'precharge_complete')
+                    self.current_state = 'Run'
+                    continue
+                elif self.precharge_timeout_event.triggered and self.voltage < self.threshold:
+                    self.log_transition('Precharge', 'Error', 'precharge_timeout AND voltage < threshold')
+                    self.current_state = 'Error'
+                    continue
+            elif self.current_state == 'Run':
+                yield from self.run_state()
+                # In a real system, there would be transitions out of Run state.
+                # For this example, let's assume it stays in Run until simulation ends or a global stop signal.
+                # To make this example run longer, we just yield timeout.
+                yield self.env.timeout(0.001) # Ensure it's a generator
+            elif self.current_state == 'Error':
+                yield from self.error_state()
+                # No further transitions from Error state in this example
+                break # Exit the loop if in error state
+
+def test_scenarios(env, state_machine):
+    # CASE A: Input-Driven or Hybrid Systems
+    # This system appears to be time-driven with some input dependencies.
+    # We'll simulate input changes and time-based events.
+
+    # Initial state: Idle
+    yield env.timeout(1)
+
+    # Simulate system enablement
+    print("[SCENARIO] Setting system_enabled = True")
+    state_machine.system_enabled = True
+    yield env.timeout(1)
+
+    # Simulate enable signal activation
+    print("[SCENARIO] Setting enable_signal_active = True")
+    state_machine.enable_signal_active = True
+    yield env.timeout(1)
+
+    # Simulate precharge completion (before timeout)
+    print("[SCENARIO] Setting precharge_complete = True")
+    state_machine.precharge_complete = True
+    yield env.timeout(1)
+
+    # In 'Run' state, let's simulate voltage change and then a timeout scenario
+    print("[SCENARIO] Simulating voltage change and potential error")
+    state_machine.voltage = 4.0  # Below threshold
+    yield env.timeout(state_machine.precharge_duration + 2) # Wait longer than precharge_duration to ensure timeout logic is tested if precharge_complete wasn't set
+
+    # If we are still in Run, let's try to trigger an error condition by going back to Idle concept
+    # This specific state machine does not have a direct way to re-enter precharge from Run for error testing.
+    # To demonstrate the 'precharge_timeout AND voltage < threshold' transition, we need to be in Precharge.
+    # Let's reset and try again to specifically trigger the error.
+
+    # Resetting for a focused error scenario test
+    print("\n[SCENARIO] Resetting for focused error scenario")
+    state_machine.current_state = 'Idle'
+    state_machine.system_enabled = False
+    state_machine.enable_signal_active = False
+    state_machine.precharge_complete = False
+    state_machine.voltage = 0
+    state_machine.precharge_timeout_event = env.event() # Reset event
+
+    yield env.timeout(1)
+    print("[SCENARIO] Setting system_enabled = True for error test")
+    state_machine.system_enabled = True
+    yield env.timeout(1)
+    print("[SCENARIO] Setting enable_signal_active = True for error test")
+    state_machine.enable_signal_active = True
+    yield env.timeout(1)
+
+    # Now, we are in Precharge. Let the timeout happen.
+    print(f"[SCENARIO] Allowing Precharge to timeout (Duration: {state_machine.precharge_duration}s)")
+    state_machine.voltage = 3.0 # Ensure voltage is below threshold
+    yield env.timeout(state_machine.precharge_duration + 1) # Wait a bit longer than duration
+
+    # If the error state was entered, the simulation might end soon if Error state has no further yields or breaks loop
+    # We'll let it run for a bit more to see the final state logged.
+    yield env.timeout(2)
+
+
+def run_simulation():
+    env = simpy.Environment()
+    state_machine = StateMachine(env)
+
+    # Start the state machine process
+    env.process(state_machine.run())
+
+    # Start the scenario process for input-driven testing
+    env.process(test_scenarios(env, state_machine))
+
+    # Run the simulation until a certain time
+    # The test_scenarios will drive transitions, but we need a general run duration.
+    # Let's set a generous time to allow scenarios to complete.
+    simulation_duration = 20
+    env.run(until=simulation_duration)
+
+    # Log the end of simulation
+    # The final state logged here is based on the state machine's last known state at env.now
+    # which might not be the absolute 'final' state if the simulation was cut short by env.run()
+    # A more robust way is to check state_machine.current_state after env.run()
+    final_state = state_machine.current_state
+    if final_state != 'Error': # Avoid logging end if error state inherently stops the simulation
+        state_machine.log_end(final_state)
+    else:
+        print(f"[SIM][t={env.now:.2f}] END simulation (reached Error state)")
+
+
+if __name__ == "__main__":
+    run_simulation()
+        ```
+        
+        Please execute this code and verify the results.
+        
+verifier_agent > {"status": "PASS", "reason": "Simulation executed successfully and all specified transitions occurred. The simulation also correctly tested the error condition.", "retry": false}
+
+[DEBUG] Sessions dict keys: ['InMemoryRunner']
+[DEBUG] Session value type for key 'InMemoryRunner': <class 'dict'>
+[DEBUG] Nested keys: ['debug_user_id']
+[DEBUG] Nested value type for key 'debug_user_id': <class 'dict'>
+[DEBUG] Triple nested keys: ['debug_session_id']
+[DEBUG] Found session from triple nested dict: debug_session_id
+[DEBUG] Session events count: 4
+[DEBUG] Session events count: 4
+[DEBUG] Response length: 3
+[DEBUG] Event 0 type: <class 'google.adk.events.event.Event'>
+[DEBUG] Event content parts: 1
+[DEBUG] Part type: <class 'google.genai.types.Part'>
+[DEBUG] Part text (snippet): None
+[DEBUG] Part function_response: Yes
+[DEBUG] Event 1 type: <class 'google.adk.events.event.Event'>
+[DEBUG] Event content parts: 1
+[DEBUG] Part type: <class 'google.genai.types.Part'>
+[DEBUG] Part text (snippet): None
+[DEBUG] Part function_response: Yes
+[DEBUG] Event 2 type: <class 'google.adk.events.event.Event'>
+[DEBUG] Event content parts: 1
+[DEBUG] Part type: <class 'google.genai.types.Part'>
+[DEBUG] Part text (snippet): {"status": "PASS", "reason": "Simulation executed 
+[DEBUG] Part function_response: Yes
