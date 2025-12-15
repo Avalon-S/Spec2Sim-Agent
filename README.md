@@ -196,9 +196,9 @@ spec2sim-agent/
 │   └── mermaid_tool.py         # Diagram generation
 │
 ├── demos/                      # Demo scripts
-│   ├── demo_traffic_light.py
-│   ├── demo_bms_precharge.py
-│   └── demo_elevator.py
+│   ├── traffic_light.py
+│   ├── bms_precharge.py
+│   └── elevator.py
 │
 ├── specs/                      # Example specifications
 │   ├── traffic_light.txt
@@ -246,7 +246,7 @@ spec2sim-agent/
 3. **Set up API key**:
    Create a `.env` file in the root directory:
    ```env
-   GEMINI_API_KEY=your_api_key_here
+   GEMINI_API_KEY=your_api_key
    ```
 
 ### Running Demos
@@ -255,9 +255,9 @@ spec2sim-agent/
 
 Run individual demos:
 ```bash
-python demos/demo_traffic_light.py
-python demos/demo_bms_precharge.py
-python demos/demo_elevator.py
+python demos/traffic_light.py
+python demos/bms_precharge.py
+python demos/elevator.py
 ```
 
 #### Option 2: Web Interface (Recommended)
